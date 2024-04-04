@@ -4,6 +4,8 @@ This is another node collection for ComfyUI. It includes some basic nodes that I
 
 ## Important Updates
 
+**2024/04/04**: Added nodes: "Int to Text", "Int", "Float to Int".
+
 **2024/04/03**: First Commit.
 
 ## Installation
@@ -30,6 +32,13 @@ You can also find me on [Discord][discordlink].
 - **Load Image**: Basically the same like the ComfyUI vanilla node, but with a filename output. You can chose to strip or keep the file extension.
 - **Save Image**: For saving images you can additionally specify a target folder. This folder will be created inside your output directory. You also can decide to include the metadata (like the workflow) in your image. **IMPORTANT**: When connecting the filename_opt input (which is optional) you need to know, that the filename is no longer dynamically generated. This means your images will be overwritten as long as the filename_opt does not change!
 - **Load Image From Folder**: Loads randomly or iterative an image from the specified folder. If "image_folder" is kept empty, the node will load a random image from the `input` directory. If a "image_folder" is specified, this folder must be present inside of the `input` directory. By connecting a primitive to the "index" input and setting it to value 0 and increment, the node will iterate through the images in the specified folder. In order to reset the index put the primitive then back to 0.
+- **Int to Text**: Converts an integer to a text output. By enabling "leading_zero" you can specify with "length" the length of the ouput string. Example output: 00010.
+- **Int**: A simple integer output node.
+- **Float to Int**: Converts a float value into an integer value. Functions are: round, floor, ceil.
+
+## Demo Workflows
+
+Demo workflows can be found in the examples folder.
 
 ## Credits
 

@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 from comfy.cli_args import args
 import json
+import math
 
 
 def permute_to_image(image):
@@ -493,7 +494,6 @@ class YANCLoadImageFromFolder:
         filename = Path(image_file).stem
 
         img_path = os.path.join(image_path, image_file)
-        print(f"img_path = {img_path}")
 
         img = Image.open(img_path)
         img = ImageOps.exif_transpose(img)
@@ -514,6 +514,85 @@ class YANCLoadImageFromFolder:
         return m.digest().hex()
 
 
+class YANCIntToText:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {"int": ("INT",
+                         {"default": 0,
+                          "min": 0,
+                          "max": 0xffffffffffffffff,
+                          "forceInput": True}),
+                 "leading_zeros": ("BOOLEAN", {"default": False}),
+                 "length": ("INT",
+                            {"default": 5,
+                             "min": 0,
+                             "max": 5})
+                 }
+                }
+
+    CATEGORY = "YANC"
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("text",)
+    FUNCTION = "do_it"
+
+    def do_it(self, int, leading_zeros, length):
+
+        text = str(int)
+
+        if leading_zeros:
+            text = text.zfill(length)
+
+        return (text,)
+
+
+class YANCInt:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {"seed": ("INT", {"default": 0, "min": 0,
+                          "max": 0xffffffffffffffff}), }
+                }
+
+    CATEGORY = "YANC"
+
+    RETURN_TYPES = ("INT",)
+    RETURN_NAMES = ("int",)
+    FUNCTION = "do_it"
+
+    def do_it(self, seed):
+
+        return (seed,)
+
+
+class YANCFloatToInt:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {"float": ("FLOAT", {"forceInput": True}),
+                 "function": (["round", "floor", "ceil"],)
+                 }
+                }
+
+    CATEGORY = "YANC"
+
+    RETURN_TYPES = ("INT",)
+    RETURN_NAMES = ("int",)
+    FUNCTION = "do_it"
+
+    def do_it(self, float, function):
+
+        result = round(float)
+
+        if function == "floor":
+            result = math.floor(float)
+        elif function == "ceil":
+            result = math.ceil(float)
+
+        return (int(result),)
+
+
 NODE_CLASS_MAPPINGS = {
     "> Rotate Image": YANCRotateImage,
     "> Text": YANCText,
@@ -524,7 +603,10 @@ NODE_CLASS_MAPPINGS = {
     "> Text Random Weights": YANCTextRandomWeights,
     "> Load Image": YANCLoadImageAndFilename,
     "> Save Image": YANCSaveImage,
-    "> Load Image From Folder": YANCLoadImageFromFolder
+    "> Load Image From Folder": YANCLoadImageFromFolder,
+    "> Int to Text": YANCIntToText,
+    "> Int": YANCInt,
+    "> Float to Int": YANCFloatToInt
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
@@ -538,5 +620,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Text Random Weights": "😼> Text Random Weights",
     "> Load Image": "😼> Load Image",
     "> Save Image": "😼> Save Image",
-    "> Load Image From Folder": "😼> Load Image From Folder"
+    "> Load Image From Folder": "😼> Load Image From Folder",
+    "> Int to Text": "😼> Int to Text",
+    "> Int": "😼> Int",
+    "> Float to Int": "😼> Float to Int"
 }

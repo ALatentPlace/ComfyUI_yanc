@@ -1,0 +1,485 @@
+{
+  "last_node_id": 10,
+  "last_link_id": 13,
+  "nodes": [
+    {
+      "id": 3,
+      "type": "PreviewImage",
+      "pos": [
+        442,
+        250
+      ],
+      "size": [
+        300,
+        246
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 4,
+      "type": "> Save Image",
+      "pos": [
+        1580,
+        100
+      ],
+      "size": [
+        315,
+        338
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 3
+        },
+        {
+          "name": "filename_opt",
+          "type": "STRING",
+          "link": 7,
+          "widget": {
+            "name": "filename_opt"
+          }
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "> Save Image"
+      },
+      "widgets_values": [
+        "ComfyUI",
+        "myoutputs",
+        true,
+        ""
+      ]
+    },
+    {
+      "id": 1,
+      "type": "> Load Image From Folder",
+      "pos": [
+        440,
+        100
+      ],
+      "size": {
+        "0": 315,
+        "1": 102
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "index",
+          "type": "INT",
+          "link": 5,
+          "widget": {
+            "name": "index"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            2,
+            3
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "file_name",
+          "type": "STRING",
+          "links": [
+            6
+          ],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "> Load Image From Folder"
+      },
+      "widgets_values": [
+        "myinputs",
+        -1
+      ]
+    },
+    {
+      "id": 6,
+      "type": "> Text Combine",
+      "pos": [
+        1220,
+        160
+      ],
+      "size": [
+        315,
+        130
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 6,
+          "widget": {
+            "name": "text"
+          }
+        },
+        {
+          "name": "text_append",
+          "type": "STRING",
+          "link": 8,
+          "widget": {
+            "name": "text_append"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            7
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "> Text Combine"
+      },
+      "widgets_values": [
+        "",
+        "",
+        "_",
+        false
+      ]
+    },
+    {
+      "id": 7,
+      "type": "> Int to Text",
+      "pos": [
+        860,
+        240
+      ],
+      "size": [
+        315,
+        106
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "int",
+          "type": "INT",
+          "link": 13,
+          "widget": {
+            "name": "int"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            8
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "> Int to Text"
+      },
+      "widgets_values": [
+        0,
+        true,
+        5
+      ]
+    },
+    {
+      "id": 5,
+      "type": "> Int",
+      "pos": [
+        53,
+        103
+      ],
+      "size": {
+        "0": 315,
+        "1": 82
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "int",
+          "type": "INT",
+          "links": [
+            5,
+            10
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "> Int"
+      },
+      "widgets_values": [
+        124,
+        "increment"
+      ]
+    },
+    {
+      "id": 10,
+      "type": "> Float to Int",
+      "pos": [
+        780,
+        580
+      ],
+      "size": [
+        315,
+        82
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "float",
+          "type": "FLOAT",
+          "link": 12,
+          "widget": {
+            "name": "float"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "int",
+          "type": "INT",
+          "links": [
+            13
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "> Float to Int"
+      },
+      "widgets_values": [
+        0,
+        "floor"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "SimpleMath+",
+      "pos": [
+        420,
+        560
+      ],
+      "size": {
+        "0": 315,
+        "1": 78
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "a",
+          "type": "INT,FLOAT",
+          "link": 10
+        },
+        {
+          "name": "b",
+          "type": "INT,FLOAT",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": null,
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": [
+            12
+          ],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SimpleMath+"
+      },
+      "widgets_values": [
+        "a/b"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "SimpleMath+",
+      "pos": [
+        60,
+        560
+      ],
+      "size": {
+        "0": 315,
+        "1": 78
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "a",
+          "type": "INT,FLOAT",
+          "link": null
+        },
+        {
+          "name": "b",
+          "type": "INT,FLOAT",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            11
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "title": "Amount of Images in Input Folder",
+      "properties": {
+        "Node name for S&R": "SimpleMath+"
+      },
+      "widgets_values": [
+        "62"
+      ]
+    }
+  ],
+  "links": [
+    [
+      2,
+      1,
+      0,
+      3,
+      0,
+      "IMAGE"
+    ],
+    [
+      3,
+      1,
+      0,
+      4,
+      0,
+      "IMAGE"
+    ],
+    [
+      5,
+      5,
+      0,
+      1,
+      0,
+      "INT"
+    ],
+    [
+      6,
+      1,
+      1,
+      6,
+      0,
+      "STRING"
+    ],
+    [
+      7,
+      6,
+      0,
+      4,
+      1,
+      "STRING"
+    ],
+    [
+      8,
+      7,
+      0,
+      6,
+      1,
+      "STRING"
+    ],
+    [
+      10,
+      5,
+      0,
+      8,
+      0,
+      "INT,FLOAT"
+    ],
+    [
+      11,
+      9,
+      0,
+      8,
+      1,
+      "INT,FLOAT"
+    ],
+    [
+      12,
+      8,
+      1,
+      10,
+      0,
+      "FLOAT"
+    ],
+    [
+      13,
+      10,
+      0,
+      7,
+      0,
+      "INT"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}
