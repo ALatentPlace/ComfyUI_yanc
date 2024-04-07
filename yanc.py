@@ -367,6 +367,7 @@ class YANCSaveImage:
                 {"images": ("IMAGE", ),
                  "filename_prefix": ("STRING", {"default": "ComfyUI"}),
                  "folder": ("STRING", {"default": ""}),
+                 "overwrite_warning": ("BOOLEAN", {"default": False}),
                  "include_metadata": ("BOOLEAN", {"default": True})
                  },
                 "optional":
@@ -381,7 +382,7 @@ class YANCSaveImage:
 
     CATEGORY = "YANC"
 
-    def do_it(self, images, include_metadata, filename_opt=None, folder=None, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None,):
+    def do_it(self, images, overwrite_warning, include_metadata, filename_opt=None, folder=None, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None,):
 
         if folder:
             filename_prefix += self.prefix_append
@@ -434,8 +435,13 @@ class YANCSaveImage:
                     raise Exception(
                         "Multiple images and filename detected: Images will overwrite themselves!")
 
-            img.save(os.path.join(full_output_folder, file),
-                     pnginfo=metadata, compress_level=self.compress_level)
+            save_path = os.path.join(full_output_folder, file)
+
+            if os.path.exists(save_path) and overwrite_warning:
+                raise Exception("Filename already exists.")
+            else:
+                img.save(save_path, pnginfo=metadata,
+                         compress_level=self.compress_level)
 
             results.append({
                 "filename": file,
