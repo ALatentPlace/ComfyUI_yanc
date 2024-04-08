@@ -4,6 +4,8 @@ This is another node collection for ComfyUI. It includes some basic nodes that I
 
 ## Important Updates
 
+**2024/04/08**: Added an option to warn the user if files will get overwritten. Added a "Scale to Image Side" node.
+
 **2024/04/04**: Added nodes: "Int to Text", "Int", "Float to Int".
 
 **2024/04/03**: First Commit.
