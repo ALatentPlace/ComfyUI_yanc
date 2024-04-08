@@ -22,7 +22,11 @@ You can also find me on [Discord][discordlink].
 
 ## Nodes Overview
 
+### Image
 - **Rotate Image**: Rotates an image and outputs the rotated image and a mask. Use ImageCompositeMasked (ComfyUI vanilla node) to combine it with another image.
+- **Scale Image to Side**: Scales an image to the selected side (width, height, shortest, longest). Let's you apply a modulo if needed.
+
+### Text
 - **Text**: A simple multiline text node.
 - **Text Combine**: Combines two text inputs. The "delimiter" is optional. "add_empty_line" adds an empty line between "text" and "text_append".
 - **Text Pick Random Line**: Picks a random line from a multiline text input. Set the seed to fixed if you want to stop the random picking.
@@ -33,6 +37,8 @@ You can also find me on [Discord][discordlink].
 - **Save Image**: For saving images you can additionally specify a target folder. This folder will be created inside your output directory. You also can decide to include the metadata (like the workflow) in your image. **IMPORTANT**: When connecting the filename_opt input (which is optional) you need to know, that the filename is no longer dynamically generated. This means your images will be overwritten as long as the filename_opt does not change!
 - **Load Image From Folder**: Loads randomly or iterative an image from the specified folder. If "image_folder" is kept empty, the node will load a random image from the `input` directory. If a "image_folder" is specified, this folder must be present inside of the `input` directory. By connecting a primitive to the "index" input and setting it to value 0 and increment, the node will iterate through the images in the specified folder. In order to reset the index put the primitive then back to 0.
 - **Int to Text**: Converts an integer to a text output. By enabling "leading_zero" you can specify with "length" the length of the ouput string. Example output: 00010.
+
+### Basic
 - **Int**: A simple integer output node.
 - **Float to Int**: Converts a float value into an integer value. Functions are: round, floor, ceil.
 

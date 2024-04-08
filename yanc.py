@@ -1,6 +1,7 @@
 import torch
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
+import torch.nn.functional as NNF
 from PIL import Image, ImageSequence, ImageOps
 from PIL.PngImagePlugin import PngInfo
 import random
@@ -10,6 +11,7 @@ import numpy as np
 import os
 from pathlib import Path
 from comfy.cli_args import args
+import comfy.utils
 import json
 import math
 
@@ -599,8 +601,68 @@ class YANCFloatToInt:
         return (int(result),)
 
 
+class YANCScaleImageToSide:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "scale_to": ("INT", {"default": 512}),
+                    "side": (["shortest", "longest", "width", "height"],),
+                    "interpolation": (["nearest", "bilinear", "bicubic", "area", "nearest-exact", "lanczos"],),
+                    "modulo": ("INT", {"default": 0})
+                }
+                }
+
+    CATEGORY = "YANC"
+
+    RETURN_TYPES = ("IMAGE", "INT", "INT", "FLOAT")
+    RETURN_NAMES = ("image", "height", "width", "scale_ratio")
+    FUNCTION = "do_it"
+
+    def do_it(self, image, scale_to, side, interpolation, modulo):
+
+        image = image.movedim(-1, 1)
+
+        image_height, image_width = image.shape[-2:]
+
+        longer_side = "height" if image_height > image_width else "width"
+        shorter_side = "height" if image_height < image_width else "width"
+
+        new_height, new_width, scale_ratio = 0, 0, 0
+
+        if side == "shortest":
+            side = shorter_side
+        elif side == "longest":
+            side = longer_side
+
+        if side == "width":
+            scale_ratio = scale_to / image_width
+        elif side == "height":
+            scale_ratio = scale_to / image_height
+
+        new_height = image_height * scale_ratio
+        new_width = image_width * scale_ratio
+
+        if modulo is not 0:
+            new_height = new_height - (new_height % modulo)
+            new_width = new_width - (new_width % modulo)
+
+        new_width = int(new_width)
+        new_height = int(new_height)
+
+        image = comfy.utils.common_upscale(image,
+                                           new_width, new_height, interpolation, "center")
+
+        image = image.movedim(1, -1)
+
+        return (image, new_height, new_width, scale_ratio)
+
+
 NODE_CLASS_MAPPINGS = {
     "> Rotate Image": YANCRotateImage,
+    "> Scale Image to Side": YANCScaleImageToSide,
+
     "> Text": YANCText,
     "> Text Combine": YANCTextCombine,
     "> Text Pick Random Line": YANCTextPickRandomLine,
@@ -613,11 +675,14 @@ NODE_CLASS_MAPPINGS = {
     "> Int to Text": YANCIntToText,
     "> Int": YANCInt,
     "> Float to Int": YANCFloatToInt
+
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
     "> Rotate Image": "😼> Rotate Image",
+    "> Scale Image to Side": "😼> Scale Image to Side",
+
     "> Text": "😼> Text",
     "> Text Combine": "😼> Text Combine",
     "> Text Pick Random Line": "😼> Text Pick Random Line",
