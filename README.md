@@ -4,6 +4,8 @@ This is another node collection for ComfyUI. It includes some basic nodes that I
 
 ## Important Updates
 
+**2024/04/14**: Added the "Resolution by Aspect Ratio" node.
+
 **2024/04/08**: Added an option to warn the user if files will get overwritten. Added a "Scale to Image Side" node.
 
 **2024/04/04**: Added nodes: "Int to Text", "Int", "Float to Int".
@@ -27,6 +29,7 @@ You can also find me on [Discord][discordlink].
 ### Image
 - **Rotate Image**: Rotates an image and outputs the rotated image and a mask. Use ImageCompositeMasked (ComfyUI vanilla node) to combine it with another image.
 - **Scale Image to Side**: Scales an image to the selected side (width, height, shortest, longest). Let's you apply a modulo if needed.
+- **Resolution By Aspect Ration**: Based on the input image, the node calculates the aspect ratio of it and return the closest matching resolution for either SD 1.5 or SDXL.
 
 ### Text
 - **Text**: A simple multiline text node.

@@ -38,6 +38,47 @@ def print_green(text):
     print("\033[92m" + text + "\033[0m")
 
 
+def get_common_aspect_ratios():
+    return [
+        (4, 3),
+        (3, 2),
+        (16, 9),
+        (1, 1),
+        (21, 9),
+        (9, 16),
+        (3, 4),
+        (2, 3),
+        (5, 8)
+    ]
+
+
+def get_sdxl_resolutions():
+    return [
+        ("1:1", (1024, 1024)),
+        ("3:4", (896, 1152)),
+        ("5:8", (832, 1216)),
+        ("9:16", (768, 1344)),
+        ("9:21", (640, 1536)),
+        ("4:3", (1152, 896)),
+        ("3:2", (1216, 832)),
+        ("16:9", (1344, 768)),
+        ("21:9", (1536, 640))
+    ]
+
+
+def get_15_resolutions():
+    return [
+        ("1:1", (512, 512)),
+        ("2:3", (512, 768)),
+        ("3:4", (512, 682)),
+        ("3:2", (768, 512)),
+        ("16:9", (910, 512)),
+        ("1.85:1", (952, 512)),
+        ("2:1", (1024, 512)),
+        ("2.39:1", (1224, 512))
+    ]
+
+
 class YANCRotateImage:
     def __init__(self):
         pass
@@ -659,19 +700,71 @@ class YANCScaleImageToSide:
         return (image, new_height, new_width, scale_ratio)
 
 
+class YANCResolutionByAspectRatio:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "stable_diffusion": (["1.5", "SDXL"],),
+                    "image": ("IMAGE",),
+                },
+                }
+
+    CATEGORY = "YANC"
+
+    RETURN_TYPES = ("INT", "INT")
+    RETURN_NAMES = ("width", "height",)
+    FUNCTION = "do_it"
+
+    def do_it(self, stable_diffusion, image):
+
+        common_ratios = get_common_aspect_ratios()
+        resolutionsSDXL = get_sdxl_resolutions()
+        resolutions15 = get_15_resolutions()
+
+        resolution = resolutions15 if stable_diffusion == "1.5" else resolutionsSDXL
+
+        image_height, image_width = 0, 0
+
+        image = image.movedim(-1, 1)
+        image_height, image_width = image.shape[-2:]
+
+        gcd = math.gcd(image_width, image_height)
+        aspect_ratio = image_width // gcd, image_height // gcd
+
+        closest_ratio = min(common_ratios, key=lambda x: abs(
+            x[1] / x[0] - aspect_ratio[1] / aspect_ratio[0]))
+
+        closest_resolution = min(resolution, key=lambda res: abs(
+            res[1][0] * aspect_ratio[1] - res[1][1] * aspect_ratio[0]))
+
+        height, width = closest_resolution[1][1], closest_resolution[1][0]
+        sd_version = stable_diffusion if stable_diffusion == "SDXL" else "SD 1.5"
+
+        print_cyan(
+            f"Orig. Resolution: {image_width}x{image_height}, Aspect Ratio: {closest_ratio[0]}:{closest_ratio[1]}, Picked resolution: {width}x{height} for {sd_version}")
+
+        return (width, height,)
+
+
 NODE_CLASS_MAPPINGS = {
+    # Image
     "> Rotate Image": YANCRotateImage,
     "> Scale Image to Side": YANCScaleImageToSide,
+    "> Resolution by Aspect Ratio": YANCResolutionByAspectRatio,
+    "> Load Image": YANCLoadImageAndFilename,
+    "> Save Image": YANCSaveImage,
+    "> Load Image From Folder": YANCLoadImageFromFolder,
 
+    # Text
     "> Text": YANCText,
     "> Text Combine": YANCTextCombine,
     "> Text Pick Random Line": YANCTextPickRandomLine,
     "> Clear Text": YANCClearText,
     "> Text Replace": YANCTextReplace,
     "> Text Random Weights": YANCTextRandomWeights,
-    "> Load Image": YANCLoadImageAndFilename,
-    "> Save Image": YANCSaveImage,
-    "> Load Image From Folder": YANCLoadImageFromFolder,
+
+    # Basics
     "> Int to Text": YANCIntToText,
     "> Int": YANCInt,
     "> Float to Int": YANCFloatToInt
@@ -680,18 +773,23 @@ NODE_CLASS_MAPPINGS = {
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
+    # Image
     "> Rotate Image": "😼> Rotate Image",
     "> Scale Image to Side": "😼> Scale Image to Side",
+    "> Resolution by Aspect Ratio": "😼> Resolution by Aspect Ratio",
+    "> Load Image": "😼> Load Image",
+    "> Save Image": "😼> Save Image",
+    "> Load Image From Folder": "😼> Load Image From Folder",
 
+    # Text
     "> Text": "😼> Text",
     "> Text Combine": "😼> Text Combine",
     "> Text Pick Random Line": "😼> Text Pick Random Line",
     "> Clear Text": "😼> Clear Text",
     "> Text Replace": "😼> Text Replace",
     "> Text Random Weights": "😼> Text Random Weights",
-    "> Load Image": "😼> Load Image",
-    "> Save Image": "😼> Save Image",
-    "> Load Image From Folder": "😼> Load Image From Folder",
+
+    # Basics
     "> Int to Text": "😼> Int to Text",
     "> Int": "😼> Int",
     "> Float to Int": "😼> Float to Int"
