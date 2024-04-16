@@ -14,6 +14,7 @@ from comfy.cli_args import args
 import comfy.utils
 import json
 import math
+import datetime
 
 
 def permute_to_image(image):
@@ -77,6 +78,28 @@ def get_15_resolutions():
         ("2:1", (1024, 512)),
         ("2.39:1", (1224, 512))
     ]
+
+
+def replace_dt_placeholders(string):
+    dt = datetime.datetime.now()
+
+    format_mapping = {
+        "%d",  # Day
+        "%m",  # Month
+        "%Y",  # Year long
+        "%y",  # Year short
+        "%H",  # Hour 00 - 23
+        "%I",  # Hour 00 - 12
+        "%p",  # AM/PM
+        "%M",  # Minute
+        "%S"  # Second
+    }
+
+    for placeholder in format_mapping:
+        if placeholder in string:
+            string = string.replace(placeholder, dt.strftime(placeholder))
+
+    return string
 
 
 class YANCRotateImage:
@@ -433,6 +456,9 @@ class YANCSaveImage:
         else:
             filename_prefix += self.prefix_append
 
+        if "%" in filename_prefix:
+            filename_prefix = replace_dt_placeholders(filename_prefix)
+
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
             filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
 
@@ -450,6 +476,7 @@ class YANCSaveImage:
                         metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
             if not filename_opt:
+
                 filename_with_batch_num = filename.replace(
                     "%batch_num%", str(batch_number))
 
