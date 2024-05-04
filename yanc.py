@@ -153,7 +153,8 @@ class YANCText:
             "required": {
                 "text": ("STRING", {
                     "multiline": True,
-                    "default": ""
+                    "default": "",
+                    "dynamicPrompts": True
                 }),
             },
         }
