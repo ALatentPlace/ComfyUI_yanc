@@ -1,7 +1,6 @@
 import torch
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
-import torch.nn.functional as NNF
 from PIL import Image, ImageSequence, ImageOps
 from PIL.PngImagePlugin import PngInfo
 import random
@@ -11,10 +10,16 @@ import numpy as np
 import os
 from pathlib import Path
 from comfy.cli_args import args
+from comfy_extras import nodes_mask as masks
 import comfy.utils
+import nodes as nodes
 import json
 import math
 import datetime
+
+# ------------------------------------------------------------------------------------------------------------------ #
+# Functions                                                                                                          #
+# ------------------------------------------------------------------------------------------------------------------ #
 
 
 def permute_to_image(image):
@@ -102,6 +107,76 @@ def replace_dt_placeholders(string):
     return string
 
 
+def patch(model, multiplier):  # RescaleCFG functionality from the ComfyUI nodes
+    def rescale_cfg(args):
+        cond = args["cond"]
+        uncond = args["uncond"]
+        cond_scale = args["cond_scale"]
+        sigma = args["sigma"]
+        sigma = sigma.view(sigma.shape[:1] + (1,) * (cond.ndim - 1))
+        x_orig = args["input"]
+
+        # rescale cfg has to be done on v-pred model output
+        x = x_orig / (sigma * sigma + 1.0)
+        cond = ((x - (x_orig - cond)) * (sigma ** 2 + 1.0) ** 0.5) / (sigma)
+        uncond = ((x - (x_orig - uncond)) *
+                  (sigma ** 2 + 1.0) ** 0.5) / (sigma)
+
+        # rescalecfg
+        x_cfg = uncond + cond_scale * (cond - uncond)
+        ro_pos = torch.std(cond, dim=(1, 2, 3), keepdim=True)
+        ro_cfg = torch.std(x_cfg, dim=(1, 2, 3), keepdim=True)
+
+        x_rescaled = x_cfg * (ro_pos / ro_cfg)
+        x_final = multiplier * x_rescaled + (1.0 - multiplier) * x_cfg
+
+        return x_orig - (x - x_final * sigma / (sigma * sigma + 1.0) ** 0.5)
+
+    m = model.clone()
+    m.set_model_sampler_cfg_function(rescale_cfg)
+    return (m, )
+
+
+def blend_images(image1, image2, blend_mode, blend_rate):
+    if blend_mode == 'multiply':
+        return (1 - blend_rate) * image1 + blend_rate * (image1 * image2)
+    elif blend_mode == 'add':
+        return (1 - blend_rate) * image1 + blend_rate * (image1 + image2)
+    elif blend_mode == 'overlay':
+        blended_image = torch.where(
+            image1 < 0.5, 2 * image1 * image2, 1 - 2 * (1 - image1) * (1 - image2))
+        return (1 - blend_rate) * image1 + blend_rate * blended_image
+    elif blend_mode == 'soft light':
+        return (1 - blend_rate) * image1 + blend_rate * (soft_light_blend(image1, image2))
+    elif blend_mode == 'hard light':
+        return (1 - blend_rate) * image1 + blend_rate * (hard_light_blend(image1, image2))
+    elif blend_mode == 'lighten':
+        return (1 - blend_rate) * image1 + blend_rate * (lighten_blend(image1, image2))
+    elif blend_mode == 'darken':
+        return (1 - blend_rate) * image1 + blend_rate * (darken_blend(image1, image2))
+    else:
+        raise ValueError("Unsupported blend mode")
+
+
+def soft_light_blend(base, blend):
+    return 2 * base * blend + base**2 * (1 - 2 * blend)
+
+
+def hard_light_blend(base, blend):
+    return 2 * base * blend + (1 - 2 * base) * (1 - blend)
+
+
+def lighten_blend(base, blend):
+    return torch.max(base, blend)
+
+
+def darken_blend(base, blend):
+    return torch.min(base, blend)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+# Comfy classes                                                                                                      #
+# ------------------------------------------------------------------------------------------------------------------ #
 class YANCRotateImage:
     def __init__(self):
         pass
@@ -142,6 +217,8 @@ class YANCRotateImage:
 
         return (img_out, mask_out)
 
+# ------------------------------------------------------------------------------------------------------------------ #
+
 
 class YANCText:
     def __init__(self):
@@ -168,6 +245,8 @@ class YANCText:
 
     def do_it(self, text):
         return (text,)
+
+# ------------------------------------------------------------------------------------------------------------------ #
 
 
 class YANCTextCombine:
@@ -203,6 +282,8 @@ class YANCTextCombine:
 
         return (delimiter.join(str_list),)
 
+# ------------------------------------------------------------------------------------------------------------------ #
+
 
 class YANCTextPickRandomLine:
     def __init__(self):
@@ -230,6 +311,8 @@ class YANCTextPickRandomLine:
         line = random.choice(lines)
 
         return (line,)
+
+# ------------------------------------------------------------------------------------------------------------------ #
 
 
 class YANCClearText:
@@ -270,6 +353,8 @@ class YANCClearText:
     def IS_CHANGED(s, text, chance):
         return s.do_it(s, text, chance)
 
+# ------------------------------------------------------------------------------------------------------------------ #
+
 
 class YANCTextReplace:
     def __init__(self):
@@ -302,6 +387,8 @@ class YANCTextReplace:
         text = text.replace(find, replace)
 
         return (text,)
+
+# ------------------------------------------------------------------------------------------------------------------ #
 
 
 class YANCTextRandomWeights:
@@ -351,6 +438,8 @@ class YANCTextRandomWeights:
                                     ) + (", " if count < len(lines) else "")
 
         return (out,)
+
+# ------------------------------------------------------------------------------------------------------------------ #
 
 
 class YANCLoadImageAndFilename:
@@ -419,6 +508,8 @@ class YANCLoadImageAndFilename:
             return "Invalid image file: {}".format(image)
 
         return True
+
+# ------------------------------------------------------------------------------------------------------------------ #
 
 
 class YANCSaveImage:
@@ -522,6 +613,8 @@ class YANCSaveImage:
 
         return {"ui": {"images": results}}
 
+# ------------------------------------------------------------------------------------------------------------------ #
+
 
 class YANCLoadImageFromFolder:
     @classmethod
@@ -590,6 +683,8 @@ class YANCLoadImageFromFolder:
             m.update(f.read())
         return m.digest().hex()
 
+# ------------------------------------------------------------------------------------------------------------------ #
+
 
 class YANCIntToText:
     @classmethod
@@ -623,6 +718,8 @@ class YANCIntToText:
 
         return (text,)
 
+# ------------------------------------------------------------------------------------------------------------------ #
+
 
 class YANCInt:
     @classmethod
@@ -641,6 +738,8 @@ class YANCInt:
     def do_it(self, seed):
 
         return (seed,)
+
+# ------------------------------------------------------------------------------------------------------------------ #
 
 
 class YANCFloatToInt:
@@ -668,6 +767,8 @@ class YANCFloatToInt:
             result = math.ceil(float)
 
         return (int(result),)
+
+# ------------------------------------------------------------------------------------------------------------------ #
 
 
 class YANCScaleImageToSide:
@@ -713,7 +814,7 @@ class YANCScaleImageToSide:
         new_height = image_height * scale_ratio
         new_width = image_width * scale_ratio
 
-        if modulo is not 0:
+        if modulo != 0:
             new_height = new_height - (new_height % modulo)
             new_width = new_width - (new_width % modulo)
 
@@ -726,6 +827,8 @@ class YANCScaleImageToSide:
         image = image.movedim(1, -1)
 
         return (image, new_height, new_width, scale_ratio)
+
+# ------------------------------------------------------------------------------------------------------------------ #
 
 
 class YANCResolutionByAspectRatio:
@@ -774,7 +877,240 @@ class YANCResolutionByAspectRatio:
 
         return (width, height,)
 
+# ------------------------------------------------------------------------------------------------------------------ #
 
+
+class YANCNIKSampler:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {"model": ("MODEL",),
+                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                 "steps": ("INT", {"default": 30, "min": 1, "max": 10000}),
+                 "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step": 0.1, "round": 0.01}),
+                 "cfg_noise": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step": 0.1, "round": 0.01}),
+                 "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
+                 "scheduler": (comfy.samplers.KSampler.SCHEDULERS, ),
+                 "positive": ("CONDITIONING", ),
+                 "negative": ("CONDITIONING", ),
+                 "latent_image": ("LATENT", ),
+                 "noise_strength": ("FLOAT", {"default": 0.5, "min": 0.1, "max": 1.0, "step": 0.1, "round": 0.01}),
+                 },
+                "optional":
+                {
+                    "latent_noise": ("LATENT", ),
+                    "mask": ("MASK",)
+                }
+                }
+
+    RETURN_TYPES = ("LATENT",)
+    RETURN_NAME = ("latent",)
+    FUNCTION = "do_it"
+
+    CATEGORY = "YANC"
+
+    def do_it(self, model, seed, steps, cfg, cfg_noise, sampler_name, scheduler, positive, negative, latent_image, noise_strength, latent_noise, inject_time=0.5, denoise=1.0, mask=None):
+
+        inject_at_step = round(steps * inject_time)
+        print("Inject at step: " + str(inject_at_step))
+
+        empty_latent = False if torch.all(
+            latent_image["samples"]) != 0 else True
+
+        print_cyan("Sampling first step image.")
+        samples_base_sampler = nodes.common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
+                                                     denoise=denoise, disable_noise=False, start_step=0, last_step=inject_at_step, force_full_denoise=True)
+
+        if mask is not None and empty_latent:
+            print_cyan(
+                "Sampling full image for unmasked areas. You can avoid this step by providing a non empty latent.")
+            samples_base_sampler2 = nodes.common_ksampler(
+                model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0)
+
+        samples_base_sampler = samples_base_sampler[0]
+
+        if mask is not None and not empty_latent:
+            samples_base_sampler = latent_image.copy()
+            samples_base_sampler["samples"] = latent_image["samples"].clone()
+
+        samples_out = latent_image.copy()
+        samples_out["samples"] = latent_image["samples"].clone()
+
+        samples_noise = latent_noise.copy()
+        samples_noise = latent_noise["samples"].clone()
+
+        if samples_base_sampler["samples"].shape != samples_noise.shape:
+            samples_noise.permute(0, 3, 1, 2)
+            samples_noise = comfy.utils.common_upscale(
+                samples_noise, samples_base_sampler["samples"].shape[3], samples_base_sampler["samples"].shape[2], 'bicubic', crop='center')
+            samples_noise.permute(0, 2, 3, 1)
+
+        samples_o = samples_base_sampler["samples"] * (1 - noise_strength)
+        samples_n = samples_noise * noise_strength
+
+        samples_out["samples"] = samples_o + samples_n
+
+        patched_model = patch(model=model, multiplier=0.65)[
+            0] if round(cfg_noise, 1) > 8.0 else model
+
+        print_cyan("Applying noise.")
+        result = nodes.common_ksampler(patched_model, seed, steps, cfg_noise, sampler_name, scheduler, positive, negative, samples_out,
+                                       denoise=denoise, disable_noise=False, start_step=inject_at_step, last_step=steps, force_full_denoise=False)[0]
+
+        if mask is not None:
+            print_cyan("Composing...")
+            destination = latent_image["samples"].clone(
+            ) if not empty_latent else samples_base_sampler2[0]["samples"].clone()
+            source = result["samples"]
+            result["samples"] = masks.composite(
+                destination, source, 0, 0, mask, 8)
+
+        return (result,)
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCNoiseFromImage:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "magnitude": ("FLOAT", {"default": 210.0, "min": 0.0, "max": 250.0, "step": 0.5, "round": 0.1}),
+                    "smoothness": ("FLOAT", {"default": 3.0, "min": 0.0, "max": 10.0, "step": 0.5, "round": 0.1}),
+                    "noise_intensity": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "round": 0.01}),
+                    "noise_resize_factor": ("INT", {"default": 2.0, "min": 0, "max": 5.0}),
+                    "noise_blend_rate": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.005, "round": 0.005}),
+                    "saturation_correction": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.5, "step": 0.1, "round": 0.1}),
+                    "blend_mode": (["off", "multiply", "add", "overlay", "soft light", "hard light", "lighten", "darken"],),
+                    "blend_rate": ("FLOAT", {"default": 0.25, "min": 0.0, "max": 1.0, "step": 0.01, "round": 0.01}),
+                },
+                "optional":
+                {
+                    "vae_opt": ("VAE", ),
+                }
+                }
+
+    CATEGORY = "YANC"
+
+    RETURN_TYPES = ("IMAGE", "LATENT")
+    RETURN_NAMES = ("image", "latent")
+    FUNCTION = "do_it"
+
+    def do_it(self, image, magnitude, smoothness, noise_intensity, noise_resize_factor, noise_blend_rate, saturation_correction, blend_mode, blend_rate, vae_opt=None):
+
+        # magnitude:                The alpha for the elastic transform. Magnitude of displacements.
+        # smoothness:               The sigma for the elastic transform. Smoothness of displacements.
+        # noise_intensity:          Multiplier for the torch noise.
+        # noise_resize_factor:      Multiplier to enlarge the generated noise.
+        # noise_blend_rate:         Blend rate between the elastic and the noise.
+        # saturation_correction:    Well, for saturation correction.
+        # blend_mode:               Different blending modes to blend over batched images.
+        # blend_rate:               The strength of the blending.
+
+        noise_blend_rate = noise_blend_rate / 2.25
+
+        if blend_mode != "off":
+            blended_image = image[0:1]
+
+            for i in range(1, image.size(0)):
+                blended_image = blend_images(
+                    blended_image, image[i:i+1], blend_mode=blend_mode, blend_rate=blend_rate)
+
+                max_value = torch.max(blended_image)
+                blended_image /= max_value
+
+            image = blended_image
+
+        noisy_image = torch.randn_like(image) * noise_intensity
+        noisy_image = noisy_image.movedim(-1, 1)
+
+        image = image.movedim(-1, 1)
+        image_height, image_width = image.shape[-2:]
+
+        r_mean = torch.mean(image[:, 0, :, :])
+        g_mean = torch.mean(image[:, 1, :, :])
+        b_mean = torch.mean(image[:, 2, :, :])
+
+        fill_value = (r_mean.item(), g_mean.item(), b_mean.item())
+
+        elastic_transformer = T.ElasticTransform(
+            alpha=float(magnitude), sigma=float(smoothness), fill=fill_value)
+        transformed_img = elastic_transformer(image)
+
+        if saturation_correction != 1.0:
+            transformed_img = F.adjust_saturation(
+                transformed_img, saturation_factor=saturation_correction)
+
+        if noise_resize_factor > 0:
+            resize_cropper = T.RandomResizedCrop(
+                size=(image_height // noise_resize_factor, image_width // noise_resize_factor))
+
+            resized_crop = resize_cropper(noisy_image)
+
+            resized_img = T.Resize(
+                size=(image_height, image_width))(resized_crop)
+            resized_img = resized_img.movedim(1, -1)
+        else:
+            resized_img = noisy_image.movedim(1, -1)
+
+        if image.size(0) == 1:
+            result = transformed_img.squeeze(0).permute(
+                1, 2, 0) + (resized_img * noise_blend_rate)
+        else:
+            result = transformed_img.squeeze(0).permute(
+                [0, 2, 3, 1])[:, :, :, :3] + (resized_img * noise_blend_rate)
+
+        latent = None
+
+        if vae_opt is not None:
+            latent = vae_opt.encode(result[:, :, :, :3])
+
+        return (result, {"samples": latent})
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCMaskCurves:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "mask": ("MASK",),
+                    "low_value_factor": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 3.0, "step": 0.05, "round": 0.05}),
+                    "mid_low_value_factor": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 3.0, "step": 0.05, "round": 0.05}),
+                    "mid_value_factor": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 3.0, "step": 0.05, "round": 0.05}),
+                    "high_value_factor": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 3.0, "step": 0.05, "round": 0.05}),
+                    "brightness": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 3.0, "step": 0.05, "round": 0.05}),
+                },
+                }
+
+    CATEGORY = "YANC"
+
+    RETURN_TYPES = ("MASK",)
+    RETURN_NAMES = ("mask",)
+    FUNCTION = "do_it"
+
+    def do_it(self, mask, low_value_factor, mid_low_value_factor, mid_value_factor, high_value_factor, brightness):
+
+        low_mask = (mask < 0.25).float()
+        mid_low_mask = ((mask >= 0.25) & (mask < 0.5)).float()
+        mid_mask = ((mask >= 0.5) & (mask < 0.75)).float()
+        high_mask = (mask >= 0.75).float()
+
+        low_mask = low_mask * (mask * low_value_factor)
+        mid_low_mask = mid_low_mask * (mask * mid_low_value_factor)
+        mid_mask = mid_mask * (mask * mid_value_factor)
+        high_mask = high_mask * (mask * high_value_factor)
+
+        final_mask = low_mask + mid_low_mask + mid_mask + high_mask
+        final_mask = final_mask * brightness
+        final_mask = torch.clamp(final_mask, 0, 1)
+
+        return (final_mask,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -795,8 +1131,14 @@ NODE_CLASS_MAPPINGS = {
     # Basics
     "> Int to Text": YANCIntToText,
     "> Int": YANCInt,
-    "> Float to Int": YANCFloatToInt
+    "> Float to Int": YANCFloatToInt,
 
+    # Noise Injection Sampler
+    "> NIKSampler": YANCNIKSampler,
+    "> Noise From Image": YANCNoiseFromImage,
+
+    # Masking
+    "> Mask Curves": YANCMaskCurves
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
@@ -820,5 +1162,12 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # Basics
     "> Int to Text": "😼> Int to Text",
     "> Int": "😼> Int",
-    "> Float to Int": "😼> Float to Int"
+    "> Float to Int": "😼> Float to Int",
+
+    # Noise Injection Sampler
+    "> NIKSampler": "😼> NIKSampler",
+    "> Noise From Image": "😼> Noise From Image",
+
+    # Masking
+    "> Mask Curves": "😼> Mask Curves"
 }
