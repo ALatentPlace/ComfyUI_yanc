@@ -1,6 +1,7 @@
 import torch
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
+import torch.nn.functional as NNF
 from PIL import Image, ImageSequence, ImageOps
 from PIL.PngImagePlugin import PngInfo
 import random
@@ -1111,6 +1112,48 @@ class YANCMaskCurves:
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCLightSourceMask:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "threshold": ("FLOAT", {"default": 0.33, "min": 0.0, "max": 1.0, "step": 0.01, "round": 0.01}),
+                },
+                }
+
+    CATEGORY = "YANC"
+
+    RETURN_TYPES = ("MASK",)
+    RETURN_NAMES = ("mask",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, threshold):
+        height, width = image.shape[2], image.shape[3]  # Annahme: image ist (batch, channels, height, width)
+
+        # Dynamische Bestimmung von kernel_size und sigma basierend auf der Bildgröße
+        kernel_size = max(33, int(0.05 * min(height, width)))  # Mindestens 5 und 5% der kleineren Dimension
+        kernel_size = kernel_size if kernel_size % 2 == 1 else kernel_size + 1  # Stelle sicher, dass kernel_size ungerade ist
+        sigma = max(1.0, kernel_size / 5.0)  # Sigma ist ca. ein Fünftel der kernel_size
+
+        # Schritt 1 bis 3 wie zuvor
+        mask = image.movedim(-1, 1).squeeze(0)
+        mask = torch.mean(mask, dim=0)
+        mask = torch.where(mask > threshold, mask * 3.0, torch.tensor(0.0))
+        mask.clamp_(min=0.0, max=1.0)
+
+        # Anwenden von Gaussian Blur
+        mask = mask.unsqueeze(0).unsqueeze(0)
+        blur = T.GaussianBlur(kernel_size=(kernel_size, kernel_size), sigma=(sigma, sigma))
+        mask = blur(mask)
+        mask = mask.squeeze(0).squeeze(0)
+
+        return (mask,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -1138,7 +1181,8 @@ NODE_CLASS_MAPPINGS = {
     "> Noise From Image": YANCNoiseFromImage,
 
     # Masking
-    "> Mask Curves": YANCMaskCurves
+    "> Mask Curves": YANCMaskCurves,
+    "> Light Source Mask": YANCLightSourceMask
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
@@ -1169,5 +1213,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Noise From Image": "😼> Noise From Image",
 
     # Masking
-    "> Mask Curves": "😼> Mask Curves"
+    "> Mask Curves": "😼> Mask Curves",
+    "> Light Source Mask": "😼> Light Source Mask"
 }
