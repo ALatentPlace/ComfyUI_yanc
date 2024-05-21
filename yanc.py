@@ -782,16 +782,20 @@ class YANCScaleImageToSide:
                     "side": (["shortest", "longest", "width", "height"],),
                     "interpolation": (["nearest", "bilinear", "bicubic", "area", "nearest-exact", "lanczos"],),
                     "modulo": ("INT", {"default": 0})
+                },
+                "optional":
+                {
+                    "mask_opt": ("MASK",),
                 }
                 }
 
     CATEGORY = "YANC"
 
-    RETURN_TYPES = ("IMAGE", "INT", "INT", "FLOAT")
-    RETURN_NAMES = ("image", "height", "width", "scale_ratio")
+    RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT", "FLOAT",)
+    RETURN_NAMES = ("image", "mask", "height", "width", "scale_ratio",)
     FUNCTION = "do_it"
 
-    def do_it(self, image, scale_to, side, interpolation, modulo):
+    def do_it(self, image, scale_to, side, interpolation, modulo, mask_opt=None):
 
         image = image.movedim(-1, 1)
 
@@ -825,9 +829,21 @@ class YANCScaleImageToSide:
         image = comfy.utils.common_upscale(image,
                                            new_width, new_height, interpolation, "center")
 
+        if mask_opt is not None:
+            mask_opt = mask_opt.permute(0, 1, 2)
+
+            mask_opt = mask_opt.unsqueeze(0)
+            mask_opt = NNF.interpolate(mask_opt, size=(
+                new_height, new_width), mode='bilinear', align_corners=False)
+
+            mask_opt = mask_opt.squeeze(0)
+            mask_opt = mask_opt.squeeze(0)
+
+            mask_opt = mask_opt.permute(0, 1)
+
         image = image.movedim(1, -1)
 
-        return (image, new_height, new_width, scale_ratio)
+        return (image, mask_opt, new_height, new_width, scale_ratio)
 
 # ------------------------------------------------------------------------------------------------------------------ #
 
@@ -1131,12 +1147,16 @@ class YANCLightSourceMask:
     FUNCTION = "do_it"
 
     def do_it(self, image, threshold):
-        height, width = image.shape[2], image.shape[3]  # Annahme: image ist (batch, channels, height, width)
+        # Annahme: image ist (batch, channels, height, width)
+        height, width = image.shape[2], image.shape[3]
 
         # Dynamische Bestimmung von kernel_size und sigma basierend auf der Bildgröße
-        kernel_size = max(33, int(0.05 * min(height, width)))  # Mindestens 5 und 5% der kleineren Dimension
-        kernel_size = kernel_size if kernel_size % 2 == 1 else kernel_size + 1  # Stelle sicher, dass kernel_size ungerade ist
-        sigma = max(1.0, kernel_size / 5.0)  # Sigma ist ca. ein Fünftel der kernel_size
+        # Mindestens 5 und 5% der kleineren Dimension
+        kernel_size = max(33, int(0.05 * min(height, width)))
+        kernel_size = kernel_size if kernel_size % 2 == 1 else kernel_size + \
+            1  # Stelle sicher, dass kernel_size ungerade ist
+        # Sigma ist ca. ein Fünftel der kernel_size
+        sigma = max(1.0, kernel_size / 5.0)
 
         # Schritt 1 bis 3 wie zuvor
         mask = image.movedim(-1, 1).squeeze(0)
@@ -1146,7 +1166,8 @@ class YANCLightSourceMask:
 
         # Anwenden von Gaussian Blur
         mask = mask.unsqueeze(0).unsqueeze(0)
-        blur = T.GaussianBlur(kernel_size=(kernel_size, kernel_size), sigma=(sigma, sigma))
+        blur = T.GaussianBlur(kernel_size=(
+            kernel_size, kernel_size), sigma=(sigma, sigma))
         mask = blur(mask)
         mask = mask.squeeze(0).squeeze(0)
 
