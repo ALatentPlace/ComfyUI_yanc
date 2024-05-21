@@ -4,6 +4,8 @@ This is another node collection for ComfyUI. It includes some basic nodes that I
 
 ## Important Updates
 
+**2024/05/17**: Added NIKSampler and "Noise From Image"
+
 **2024/04/14**: Added the "Resolution by Aspect Ratio" node.
 
 **2024/04/08**: Added an option to warn the user if files will get overwritten. Added a "Scale to Image Side" node.
@@ -54,6 +56,18 @@ You can also find me on [Discord][discordlink].
 
 **Load Image From Folder**: Loads randomly or iterative an image from the specified folder. If "image_folder" is kept empty, the node will load a random image from the `input` directory. If a "image_folder" is specified, this folder must be present inside of the `input` directory. By connecting a primitive to the "index" input and setting it to value 0 and increment, the node will iterate through the images in the specified folder. In order to reset the index put the primitive then back to 0.
 
+**Noise From Image**: Generates noise from an image. Can be used in combination with the NIKSampler. Parameter Description:
+| Parameter | Description |
+|-|-|
+| magnitude | The "waviness" of the noise. |
+| smoothness | The smoothness of the noise. Lower values give a more grainy result|
+| noise_intensity | Intensity of the additional noise. The "amount" of dots to be created. |
+| noise_resize_factor | The size of the noise dots. 2 is good for SD 1.5, while SDXL would take 3-4. |
+| noise_blend_rate | The blending rate of the noise dots on the base noise. 0.15 - 0.2 is a good value. If this is set to 0, the additional noise will not be applied. |
+| saturation_correction | To raise or lower the saturation of the noise. If colors seem to be washed out in the final image, try to set it higher. |
+| blend_mode | Used to blend over batched images. Switched to "off" the node will create noise for every batched image sent in. |
+| blend_rate | The blend intensity of batched images. Only works in combination with the blend_mode. Batched images are blended one after the other, so first image 2 on image 1, then image 3 on the result of the first blending (and so on). |
+
 ### Text
 
 **Text**: A simple multiline text node.
@@ -75,6 +89,12 @@ You can also find me on [Discord][discordlink].
 **Int**: A simple integer output node.
 
 **Float to Int**: Converts a float value into an integer value. Functions are: round, floor, ceil.
+
+### Sampling
+
+**NIKSampler**: For a "how to" on the usage please see this video (German, English subtitles):
+
+[![Noise Injection Sampler](https://img.youtube.com/vi/59-3RZknRgk/hqdefault.jpg)](https://youtu.be/59-3RZknRgk)
 
 ## Demo Workflows
 
