@@ -780,7 +780,7 @@ class YANCScaleImageToSide:
                     "image": ("IMAGE",),
                     "scale_to": ("INT", {"default": 512}),
                     "side": (["shortest", "longest", "width", "height"],),
-                    "interpolation": (["nearest", "bilinear", "bicubic", "area", "nearest-exact", "lanczos"],),
+                    "interpolation": (["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],),
                     "modulo": ("INT", {"default": 0})
                 },
                 "optional":
@@ -792,7 +792,7 @@ class YANCScaleImageToSide:
     CATEGORY = "YANC"
 
     RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT", "FLOAT",)
-    RETURN_NAMES = ("image", "mask", "height", "width", "scale_ratio",)
+    RETURN_NAMES = ("image", "mask", "width", "height", "scale_ratio",)
     FUNCTION = "do_it"
 
     def do_it(self, image, scale_to, side, interpolation, modulo, mask_opt=None):
@@ -843,7 +843,7 @@ class YANCScaleImageToSide:
 
         image = image.movedim(1, -1)
 
-        return (image, mask_opt, new_height, new_width, scale_ratio)
+        return (image, mask_opt, new_width, new_height, scale_ratio)
 
 # ------------------------------------------------------------------------------------------------------------------ #
 
@@ -1140,31 +1140,24 @@ class YANCLightSourceMask:
                 },
                 }
 
-    CATEGORY = "YANC"
+    CATEGORY = "YANC/🐾 experimental"
 
     RETURN_TYPES = ("MASK",)
     RETURN_NAMES = ("mask",)
     FUNCTION = "do_it"
 
     def do_it(self, image, threshold):
-        # Annahme: image ist (batch, channels, height, width)
         height, width = image.shape[2], image.shape[3]
 
-        # Dynamische Bestimmung von kernel_size und sigma basierend auf der Bildgröße
-        # Mindestens 5 und 5% der kleineren Dimension
         kernel_size = max(33, int(0.05 * min(height, width)))
-        kernel_size = kernel_size if kernel_size % 2 == 1 else kernel_size + \
-            1  # Stelle sicher, dass kernel_size ungerade ist
-        # Sigma ist ca. ein Fünftel der kernel_size
+        kernel_size = kernel_size if kernel_size % 2 == 1 else kernel_size + 1
         sigma = max(1.0, kernel_size / 5.0)
 
-        # Schritt 1 bis 3 wie zuvor
         mask = image.movedim(-1, 1).squeeze(0)
         mask = torch.mean(mask, dim=0)
         mask = torch.where(mask > threshold, mask * 3.0, torch.tensor(0.0))
         mask.clamp_(min=0.0, max=1.0)
 
-        # Anwenden von Gaussian Blur
         mask = mask.unsqueeze(0).unsqueeze(0)
         blur = T.GaussianBlur(kernel_size=(
             kernel_size, kernel_size), sigma=(sigma, sigma))
