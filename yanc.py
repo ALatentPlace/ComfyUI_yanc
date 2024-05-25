@@ -1140,45 +1140,38 @@ class YANCLightSourceMask:
                 },
                 }
 
-    CATEGORY = "YANC/🐾 experimental"
+    CATEGORY = "YANC"
 
     RETURN_TYPES = ("MASK",)
     RETURN_NAMES = ("mask",)
     FUNCTION = "do_it"
 
     def do_it(self, image, threshold):
-        # Bilddimensionen
-        batch_size, height, width, channels = image.shape
+        batch_size, height, width, _ = image.shape
 
-        # Kernel-Größe und Sigma basierend auf Bildgröße berechnen
         kernel_size = max(33, int(0.05 * min(height, width)))
         kernel_size = kernel_size if kernel_size % 2 == 1 else kernel_size + 1
         sigma = max(1.0, kernel_size / 5.0)
 
-        # Leere Maske initialisieren
         masks = []
 
         for i in range(batch_size):
-            mask = image[i].permute(2, 0, 1)  # Kanäle verschieben
-            mask = torch.mean(mask, dim=0)  # Mittelwert über Kanäle berechnen
+            mask = image[i].permute(2, 0, 1)
+            mask = torch.mean(mask, dim=0)
 
-            # Maske basierend auf Schwellenwert erstellen
-            mask = torch.where(mask > threshold, mask * 3.0, torch.tensor(0.0, device=mask.device))
+            mask = torch.where(mask > threshold, mask * 3.0,
+                               torch.tensor(0.0, device=mask.device))
             mask.clamp_(min=0.0, max=1.0)
 
-            # Unsqueeze für GaussianBlur-Anwendung
             mask = mask.unsqueeze(0).unsqueeze(0)
 
-            # GaussianBlur anwenden
-            blur = T.GaussianBlur(kernel_size=(kernel_size, kernel_size), sigma=(sigma, sigma))
+            blur = T.GaussianBlur(kernel_size=(
+                kernel_size, kernel_size), sigma=(sigma, sigma))
             mask = blur(mask)
 
-            # Squeeze, um die Maske zurück in die ursprüngliche Form zu bringen
             mask = mask.squeeze(0).squeeze(0)
-
             masks.append(mask)
 
-        # Stapel der Masken erstellen
         masks = torch.stack(masks)
 
         return (masks,)
