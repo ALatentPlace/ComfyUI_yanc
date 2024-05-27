@@ -1,6 +1,7 @@
 import torch
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
+import torch.nn.functional as NNF
 from PIL import Image, ImageSequence, ImageOps
 from PIL.PngImagePlugin import PngInfo
 import random
@@ -779,18 +780,22 @@ class YANCScaleImageToSide:
                     "image": ("IMAGE",),
                     "scale_to": ("INT", {"default": 512}),
                     "side": (["shortest", "longest", "width", "height"],),
-                    "interpolation": (["nearest", "bilinear", "bicubic", "area", "nearest-exact", "lanczos"],),
+                    "interpolation": (["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],),
                     "modulo": ("INT", {"default": 0})
+                },
+                "optional":
+                {
+                    "mask_opt": ("MASK",),
                 }
                 }
 
     CATEGORY = "YANC"
 
-    RETURN_TYPES = ("IMAGE", "INT", "INT", "FLOAT")
-    RETURN_NAMES = ("image", "height", "width", "scale_ratio")
+    RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT", "FLOAT",)
+    RETURN_NAMES = ("image", "mask", "width", "height", "scale_ratio",)
     FUNCTION = "do_it"
 
-    def do_it(self, image, scale_to, side, interpolation, modulo):
+    def do_it(self, image, scale_to, side, interpolation, modulo, mask_opt=None):
 
         image = image.movedim(-1, 1)
 
@@ -824,9 +829,21 @@ class YANCScaleImageToSide:
         image = comfy.utils.common_upscale(image,
                                            new_width, new_height, interpolation, "center")
 
+        if mask_opt is not None:
+            mask_opt = mask_opt.permute(0, 1, 2)
+
+            mask_opt = mask_opt.unsqueeze(0)
+            mask_opt = NNF.interpolate(mask_opt, size=(
+                new_height, new_width), mode='bilinear', align_corners=False)
+
+            mask_opt = mask_opt.squeeze(0)
+            mask_opt = mask_opt.squeeze(0)
+
+            mask_opt = mask_opt.permute(0, 1)
+
         image = image.movedim(1, -1)
 
-        return (image, new_height, new_width, scale_ratio)
+        return (image, mask_opt, new_width, new_height, scale_ratio)
 
 # ------------------------------------------------------------------------------------------------------------------ #
 
@@ -1111,6 +1128,56 @@ class YANCMaskCurves:
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCLightSourceMask:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "threshold": ("FLOAT", {"default": 0.33, "min": 0.0, "max": 1.0, "step": 0.01, "round": 0.01}),
+                },
+                }
+
+    CATEGORY = "YANC"
+
+    RETURN_TYPES = ("MASK",)
+    RETURN_NAMES = ("mask",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, threshold):
+        batch_size, height, width, _ = image.shape
+
+        kernel_size = max(33, int(0.05 * min(height, width)))
+        kernel_size = kernel_size if kernel_size % 2 == 1 else kernel_size + 1
+        sigma = max(1.0, kernel_size / 5.0)
+
+        masks = []
+
+        for i in range(batch_size):
+            mask = image[i].permute(2, 0, 1)
+            mask = torch.mean(mask, dim=0)
+
+            mask = torch.where(mask > threshold, mask * 3.0,
+                               torch.tensor(0.0, device=mask.device))
+            mask.clamp_(min=0.0, max=1.0)
+
+            mask = mask.unsqueeze(0).unsqueeze(0)
+
+            blur = T.GaussianBlur(kernel_size=(
+                kernel_size, kernel_size), sigma=(sigma, sigma))
+            mask = blur(mask)
+
+            mask = mask.squeeze(0).squeeze(0)
+            masks.append(mask)
+
+        masks = torch.stack(masks)
+
+        return (masks,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -1138,7 +1205,8 @@ NODE_CLASS_MAPPINGS = {
     "> Noise From Image": YANCNoiseFromImage,
 
     # Masking
-    "> Mask Curves": YANCMaskCurves
+    "> Mask Curves": YANCMaskCurves,
+    "> Light Source Mask": YANCLightSourceMask
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
@@ -1169,5 +1237,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Noise From Image": "😼> Noise From Image",
 
     # Masking
-    "> Mask Curves": "😼> Mask Curves"
+    "> Mask Curves": "😼> Mask Curves",
+    "> Light Source Mask": "😼> Light Source Mask"
 }
