@@ -17,6 +17,7 @@ import nodes as nodes
 import json
 import math
 import datetime
+from scipy.ndimage import binary_erosion
 
 # ------------------------------------------------------------------------------------------------------------------ #
 # Functions                                                                                                          #
@@ -1178,6 +1179,177 @@ class YANCLightSourceMask:
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCNormalMapLighting:
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "diffuse_map": ("IMAGE",),
+                "normal_map": ("IMAGE",),
+                "specular_map": ("IMAGE",),
+                "light_yaw": ("FLOAT", {"default": 45, "min": -180, "max": 180, "step": 1}),
+                "light_pitch": ("FLOAT", {"default": 30, "min": -90, "max": 90, "step": 1}),
+                "specular_power": ("FLOAT", {"default": 32, "min": 1, "max": 200, "step": 1}),
+                "ambient_light": ("FLOAT", {"default": 0.50, "min": 0, "max": 1, "step": 0.01}),
+                "NormalDiffuseStrength": ("FLOAT", {"default": 1.00, "min": 0, "max": 5.0, "step": 0.01}),
+                "SpecularHighlightsStrength": ("FLOAT", {"default": 1.00, "min": 0, "max": 5.0, "step": 0.01}),
+                "TotalGain": ("FLOAT", {"default": 1.00, "min": 0, "max": 2.0, "step": 0.01}),
+                "color": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFF, "step": 1, "display": "color"}),
+                "mask": ("MASK",),
+                "erosion_size": ("INT", {"default": 5, "min": 1, "max": 50, "step": 1}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+
+    FUNCTION = "do_it"
+    CATEGORY = "YANC"
+
+    def resize_tensor(self, tensor, size):
+        return torch.nn.functional.interpolate(tensor, size=size, mode='bilinear', align_corners=False)
+
+    def erode_mask(self, mask, erosion_size):
+        # Convert tensor to numpy array
+        mask_np = mask.squeeze().cpu().numpy()
+        # Erode the mask
+        eroded_mask_np = binary_erosion(mask_np, structure=np.ones((erosion_size, erosion_size))).astype(mask_np.dtype)
+        # Convert back to tensor
+        eroded_mask = torch.from_numpy(eroded_mask_np).unsqueeze(0).unsqueeze(0).to(mask.device)
+        return eroded_mask
+
+    def do_it(self, diffuse_map, normal_map, specular_map, light_yaw, light_pitch, specular_power, ambient_light, NormalDiffuseStrength, SpecularHighlightsStrength, TotalGain, color, mask, erosion_size):
+        # Convert input images to tensors
+        diffuse_tensor = diffuse_map.permute(
+            0, 3, 1, 2)  # (N, H, W, 3) -> (N, 3, H, W)
+        normal_tensor = normal_map.permute(
+            0, 3, 1, 2) * 2.0 - 1.0  # (N, H, W, 3) -> (N, 3, H, W)
+        specular_tensor = specular_map.permute(
+            0, 3, 1, 2)  # (N, H, W, 3) -> (N, 3, H, W)
+        mask_tensor = mask.unsqueeze(1)  # Convert mask to (N, 1, H, W)
+        # Expand mask to (N, 3, H, W)
+        mask_tensor = mask_tensor.expand(-1, 3, -1, -1)
+
+        # Ensure all tensors are of the same size
+        target_size = (diffuse_tensor.shape[2], diffuse_tensor.shape[3])
+        normal_tensor = self.resize_tensor(normal_tensor, target_size)
+        specular_tensor = self.resize_tensor(specular_tensor, target_size)
+        mask_tensor = self.resize_tensor(mask_tensor, target_size)
+
+        # Erode the mask
+        mask_tensor = self.erode_mask(mask_tensor, erosion_size)
+
+        # Normalize normal vectors
+        normal_tensor = torch.nn.functional.normalize(normal_tensor, dim=1)
+
+        # Reshape light_direction correctly for broadcasting
+        light_direction = self.euler_to_vector(light_yaw, light_pitch, 0)
+        # Reshape to [1, 3, 1, 1] to enable broadcasting
+        light_direction = light_direction.view(1, 3, 1, 1)
+
+        # Reshape camera_direction correctly for broadcasting
+        camera_direction = self.euler_to_vector(0, 0, 0)
+        # Reshape to [1, 3, 1, 1] to enable broadcasting
+        camera_direction = camera_direction.view(1, 3, 1, 1)
+
+        # Convert light color to tensor and prepare for calculation
+        light_color = self.int_to_rgb(color)
+        light_color_tensor = torch.tensor(
+            light_color).view(1, 3, 1, 1)  # [1, 3, 1, 1]
+
+        # Calculate diffuse reflection
+        diffuse = torch.sum(normal_tensor * light_direction,
+                            dim=1, keepdim=True)
+        diffuse = torch.clamp(diffuse, 0, 1)
+        diffuse = diffuse * light_color_tensor
+
+        # Calculate specular reflection
+        half_vector = torch.nn.functional.normalize(
+            light_direction + camera_direction, dim=1)
+        specular = torch.sum(normal_tensor * half_vector, dim=1, keepdim=True)
+        specular = torch.pow(torch.clamp(specular, 0, 1), specular_power)
+
+        specular = specular * light_color_tensor
+
+        # Ensure the size of the diffuse and specular components match the input size
+        if diffuse.shape != target_size:
+            diffuse = self.resize_tensor(diffuse, target_size)
+        if specular.shape != target_size:
+            specular = self.resize_tensor(specular, target_size)
+
+        # Combine results of diffuse and specular reflection
+        output_tensor = (diffuse_tensor * (ambient_light + diffuse * NormalDiffuseStrength) +
+                         specular_tensor * specular * SpecularHighlightsStrength) * TotalGain
+
+        output_tensor = output_tensor * mask_tensor + \
+            diffuse_tensor * (1 - mask_tensor)
+
+        # Convert tensor to output image
+        output_tensor = output_tensor.permute(
+            0, 2, 3, 1)  # (N, 3, H, W) -> (N, H, W, 3)
+
+        return (output_tensor,)
+
+    def euler_to_vector(self, yaw, pitch, roll):
+        yaw_rad = np.radians(yaw)
+        pitch_rad = np.radians(pitch)
+        roll_rad = np.radians(roll)
+
+        cos_pitch = np.cos(pitch_rad)
+        sin_pitch = np.sin(pitch_rad)
+        cos_yaw = np.cos(yaw_rad)
+        sin_yaw = np.sin(yaw_rad)
+        # cos_roll = np.cos(roll_rad)
+        # sin_roll = np.sin(roll_rad)
+
+        direction = np.array([
+            sin_yaw * cos_pitch,
+            sin_pitch,
+            cos_pitch * cos_yaw
+        ])
+
+        return torch.from_numpy(direction).float()
+
+    def int_to_rgb(self, color_int):
+        # Extract the RGB components from the integer value
+        r = (color_int >> 16) & 0xFF  # The upper 8 bits
+        g = (color_int >> 8) & 0xFF   # The middle 8 bits
+        b = color_int & 0xFF          # The lower 8 bits
+        # Normalize the values to the range [0, 1]
+        return (r / 255.0, g / 255.0, b / 255.0)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCRGBToInt:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "red": ("INT", {"default": 0, "min": 0, "max": 255, "step": 1}),
+                    "green": ("INT", {"default": 0, "min": 0, "max": 255, "step": 1}),
+                    "blue": ("INT", {"default": 0, "min": 0, "max": 255, "step": 1}),
+                },
+                }
+
+    CATEGORY = "YANC"
+
+    RETURN_TYPES = ("INT",)
+    RETURN_NAMES = ("int",)
+    FUNCTION = "do_it"
+
+    def do_it(self, red, green, blue):
+        color = (red << 16) | (green << 8) | blue
+        return (color,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -1186,6 +1358,7 @@ NODE_CLASS_MAPPINGS = {
     "> Load Image": YANCLoadImageAndFilename,
     "> Save Image": YANCSaveImage,
     "> Load Image From Folder": YANCLoadImageFromFolder,
+    "> Normal Map Lighting": YANCNormalMapLighting,
 
     # Text
     "> Text": YANCText,
@@ -1206,7 +1379,10 @@ NODE_CLASS_MAPPINGS = {
 
     # Masking
     "> Mask Curves": YANCMaskCurves,
-    "> Light Source Mask": YANCLightSourceMask
+    "> Light Source Mask": YANCLightSourceMask,
+
+    # Utils
+    "> RGB To Int": YANCRGBToInt,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
@@ -1218,6 +1394,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Load Image": "😼> Load Image",
     "> Save Image": "😼> Save Image",
     "> Load Image From Folder": "😼> Load Image From Folder",
+    "> Normal Map Lighting": "😼> Normal Map Lighting",
 
     # Text
     "> Text": "😼> Text",
@@ -1238,5 +1415,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     # Masking
     "> Mask Curves": "😼> Mask Curves",
-    "> Light Source Mask": "😼> Light Source Mask"
+    "> Light Source Mask": "😼> Light Source Mask",
+
+    # Utils
+    "> RGB to Int": "😼> RGB to Int",
 }
