@@ -17,7 +17,14 @@ import nodes as nodes
 import json
 import math
 import datetime
-from scipy.ndimage import binary_erosion
+
+yanc_root_name = "YANC"
+yanc_sub_image = "/😼> Image"
+yanc_sub_text = "/😼> Text"
+yanc_sub_basics = "/😼> Basics"
+yanc_sub_nik = "/😼> Noise Injection Sampler"
+yanc_sub_masking = "/😼> Masking"
+yanc_sub_utils = "/😼> Utils"
 
 # ------------------------------------------------------------------------------------------------------------------ #
 # Functions                                                                                                          #
@@ -202,7 +209,7 @@ class YANCRotateImage:
 
     FUNCTION = "do_it"
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_image
 
     def do_it(self, image, rotation_angle):
         samples = image.movedim(-1, 1)
@@ -243,7 +250,7 @@ class YANCText:
 
     FUNCTION = "do_it"
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_text
 
     def do_it(self, text):
         return (text,)
@@ -271,7 +278,7 @@ class YANCTextCombine:
 
     FUNCTION = "do_it"
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_text
 
     def do_it(self, text, text_append, delimiter, add_empty_line):
         if text_append.strip() == "":
@@ -305,7 +312,7 @@ class YANCTextPickRandomLine:
 
     FUNCTION = "do_it"
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_text
 
     def do_it(self, text, seed):
         lines = text.splitlines()
@@ -341,7 +348,7 @@ class YANCClearText:
 
     FUNCTION = "do_it"
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_text
 
     def do_it(self, text, chance):
         dice = random.uniform(0, 1)
@@ -383,7 +390,7 @@ class YANCTextReplace:
 
     FUNCTION = "do_it"
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_text
 
     def do_it(self, text, find, replace):
         text = text.replace(find, replace)
@@ -425,7 +432,7 @@ class YANCTextRandomWeights:
 
     FUNCTION = "do_it"
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_text
 
     def do_it(self, text, min, max, seed):
         lines = text.splitlines()
@@ -455,7 +462,7 @@ class YANCLoadImageAndFilename:
                  "strip_extension": ("BOOLEAN", {"default": True})}
                 }
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_image
 
     RETURN_TYPES = ("IMAGE", "MASK", "STRING")
     RETURN_NAMES = ("IMAGE", "MASK", "FILENAME")
@@ -540,7 +547,7 @@ class YANCSaveImage:
 
     OUTPUT_NODE = True
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_image
 
     def do_it(self, images, overwrite_warning, include_metadata, filename_opt=None, folder=None, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None,):
 
@@ -632,7 +639,7 @@ class YANCLoadImageFromFolder:
                                 "forceInput": True})}
                 }
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_image
 
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("image", "file_name")
@@ -705,7 +712,7 @@ class YANCIntToText:
                  }
                 }
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_basics
 
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("text",)
@@ -731,7 +738,7 @@ class YANCInt:
                           "max": 0xffffffffffffffff}), }
                 }
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_basics
 
     RETURN_TYPES = ("INT",)
     RETURN_NAMES = ("int",)
@@ -753,7 +760,7 @@ class YANCFloatToInt:
                  }
                 }
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_basics
 
     RETURN_TYPES = ("INT",)
     RETURN_NAMES = ("int",)
@@ -790,7 +797,7 @@ class YANCScaleImageToSide:
                 }
                 }
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_image
 
     RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT", "FLOAT",)
     RETURN_NAMES = ("image", "mask", "width", "height", "scale_ratio",)
@@ -859,7 +866,7 @@ class YANCResolutionByAspectRatio:
                 },
                 }
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_image
 
     RETURN_TYPES = ("INT", "INT")
     RETURN_NAMES = ("width", "height",)
@@ -925,7 +932,7 @@ class YANCNIKSampler:
     RETURN_NAME = ("latent",)
     FUNCTION = "do_it"
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_nik
 
     def do_it(self, model, seed, steps, cfg, cfg_noise, sampler_name, scheduler, positive, negative, latent_image, noise_strength, latent_noise, inject_time=0.5, denoise=1.0, mask=None):
 
@@ -1009,7 +1016,7 @@ class YANCNoiseFromImage:
                 }
                 }
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_nik
 
     RETURN_TYPES = ("IMAGE", "LATENT")
     RETURN_NAMES = ("image", "latent")
@@ -1103,7 +1110,7 @@ class YANCMaskCurves:
                 },
                 }
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_masking
 
     RETURN_TYPES = ("MASK",)
     RETURN_NAMES = ("mask",)
@@ -1141,7 +1148,7 @@ class YANCLightSourceMask:
                 },
                 }
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_masking
 
     RETURN_TYPES = ("MASK",)
     RETURN_NAMES = ("mask",)
@@ -1209,19 +1216,11 @@ class YANCNormalMapLighting:
     RETURN_TYPES = ("IMAGE",)
 
     FUNCTION = "do_it"
-    CATEGORY = "YANC"
+
+    CATEGORY = yanc_root_name + yanc_sub_image
 
     def resize_tensor(self, tensor, size):
         return torch.nn.functional.interpolate(tensor, size=size, mode='bilinear', align_corners=False)
-
-    def erode_mask(self, mask, erosion_size):
-        # Convert tensor to numpy array
-        mask_np = mask.squeeze().cpu().numpy()
-        # Erode the mask
-        eroded_mask_np = binary_erosion(mask_np, structure=np.ones((erosion_size, erosion_size))).astype(mask_np.dtype)
-        # Convert back to tensor
-        eroded_mask = torch.from_numpy(eroded_mask_np).unsqueeze(0).unsqueeze(0).to(mask.device)
-        return eroded_mask
 
     def do_it(self, diffuse_map, normal_map, specular_map, light_yaw, light_pitch, specular_power, ambient_light, NormalDiffuseStrength, SpecularHighlightsStrength, TotalGain, color, mask, erosion_size):
         # Convert input images to tensors
@@ -1233,6 +1232,7 @@ class YANCNormalMapLighting:
             0, 3, 1, 2)  # (N, H, W, 3) -> (N, 3, H, W)
         mask_tensor = mask.unsqueeze(1)  # Convert mask to (N, 1, H, W)
         # Expand mask to (N, 3, H, W)
+        # Expand mask to (N, 3, H, W)
         mask_tensor = mask_tensor.expand(-1, 3, -1, -1)
 
         # Ensure all tensors are of the same size
@@ -1240,9 +1240,6 @@ class YANCNormalMapLighting:
         normal_tensor = self.resize_tensor(normal_tensor, target_size)
         specular_tensor = self.resize_tensor(specular_tensor, target_size)
         mask_tensor = self.resize_tensor(mask_tensor, target_size)
-
-        # Erode the mask
-        mask_tensor = self.erode_mask(mask_tensor, erosion_size)
 
         # Normalize normal vectors
         normal_tensor = torch.nn.functional.normalize(normal_tensor, dim=1)
@@ -1338,7 +1335,7 @@ class YANCRGBToInt:
                 },
                 }
 
-    CATEGORY = "YANC"
+    CATEGORY = yanc_root_name + yanc_sub_utils
 
     RETURN_TYPES = ("INT",)
     RETURN_NAMES = ("int",)
@@ -1347,6 +1344,89 @@ class YANCRGBToInt:
     def do_it(self, red, green, blue):
         color = (red << 16) | (green << 8) | blue
         return (color,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCGetMeanColor:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "amplify": ("BOOLEAN", {"default": False})
+                },
+                "optional":
+                {
+                    "mask_opt": ("MASK",),
+                },
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_utils
+
+    RETURN_TYPES = ("INT", "INT", "INT", "INT", "STRING")
+    RETURN_NAMES = ("int", "red", "green", "blue", "hex")
+    FUNCTION = "do_it"
+
+    def do_it(self, image, amplify, mask_opt=None):
+        masked_image = image.clone()
+
+        if mask_opt is not None:
+            if mask_opt.shape[1:3] != image.shape[1:3]:
+                raise ValueError(
+                    "Mask and image spatial dimensions must match.")
+
+            mask_opt = mask_opt.unsqueeze(-1)
+
+            masked_image = masked_image * mask_opt
+
+            num_masked_pixels = torch.sum(mask_opt)
+
+            if num_masked_pixels == 0:
+                raise ValueError(
+                    "No masked pixels found in the image. Please set a mask.")
+
+            sum_r = torch.sum(masked_image[:, :, :, 0])
+            sum_g = torch.sum(masked_image[:, :, :, 1])
+            sum_b = torch.sum(masked_image[:, :, :, 2])
+
+            r_mean = sum_r / num_masked_pixels
+            g_mean = sum_g / num_masked_pixels
+            b_mean = sum_b / num_masked_pixels
+        else:
+            sum_r = torch.sum(masked_image[:, :, :, 0])
+            sum_g = torch.sum(masked_image[:, :, :, 1])
+            sum_b = torch.sum(masked_image[:, :, :, 2])
+
+            r_mean = sum_r
+            g_mean = sum_g
+            b_mean = sum_b
+
+        r_mean_255 = r_mean.item() * 255.0
+        g_mean_255 = g_mean.item() * 255.0
+        b_mean_255 = b_mean.item() * 255.0
+
+        if amplify:
+            highest_value = max(r_mean_255, g_mean_255, b_mean_255)
+            diff_to_max = 255.0 - highest_value
+
+            amp_factor = 1.0
+
+            r_mean_255 += diff_to_max * amp_factor * \
+                (r_mean_255 / highest_value)
+            g_mean_255 += diff_to_max * amp_factor * \
+                (g_mean_255 / highest_value)
+            b_mean_255 += diff_to_max * amp_factor * \
+                (b_mean_255 / highest_value)
+
+        fill_value = (int(r_mean_255) << 16) + \
+            (int(g_mean_255) << 8) + int(b_mean_255)
+
+        hex_color = "#{:02x}{:02x}{:02x}".format(
+            int(r_mean_255), int(g_mean_255), int(b_mean_255)).upper()
+
+        return (fill_value, int(r_mean_255), int(g_mean_255), int(b_mean_255), hex_color,)
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
@@ -1383,6 +1463,7 @@ NODE_CLASS_MAPPINGS = {
 
     # Utils
     "> RGB To Int": YANCRGBToInt,
+    "> Get Mean Color": YANCGetMeanColor,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
@@ -1419,4 +1500,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     # Utils
     "> RGB to Int": "😼> RGB to Int",
+    "> Get Mean Color": "😼> Get Mean Color",
 }
