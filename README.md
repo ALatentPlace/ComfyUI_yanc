@@ -2,7 +2,9 @@
 
 This is another node collection for ComfyUI. It includes some basic nodes that I find useful, and I've also created them to meet my personal needs.
 
-## Important Updates
+## Latest Updates
+
+**2024/05/27**: Added LightSourceMask and mask support for the rescale image node.
 
 **2024/05/17**: Added NIKSampler and "Noise From Image"
 
@@ -32,7 +34,7 @@ You can also find me on [Discord][discordlink].
 
 **Rotate Image**: Rotates an image and outputs the rotated image and a mask. Use ImageCompositeMasked (ComfyUI vanilla node) to combine it with another image.
 
-**Scale Image to Side**: Scales an image to the selected side (width, height, shortest, longest). Let's you apply a modulo if needed.
+**Scale Image to Side**: Scales an image to the selected side (width, height, shortest, longest). Let's you apply a modulo if needed. When applying a mask the mask will also be resized.
 
 **Resolution By Aspect Ration**: Based on the input image, the node calculates the aspect ratio of it and return the closest matching resolution for either SD 1.5 or SDXL.
 
@@ -95,6 +97,10 @@ You can also find me on [Discord][discordlink].
 **NIKSampler**: For a "how to" on the usage please see this video (German, English subtitles):
 
 [![Noise Injection Sampler](https://img.youtube.com/vi/59-3RZknRgk/hqdefault.jpg)](https://youtu.be/59-3RZknRgk)
+
+### Masking
+
+**Light Source Mask**: A node which takes the brightest parts of an image (can be adjusted with a threshold) and creates a blurred mask.
 
 ## Demo Workflows
 
