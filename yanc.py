@@ -19,12 +19,12 @@ import math
 import datetime
 
 yanc_root_name = "YANC"
-yanc_sub_image = "/😼> Image"
-yanc_sub_text = "/😼> Text"
-yanc_sub_basics = "/😼> Basics"
-yanc_sub_nik = "/😼> Noise Injection Sampler"
-yanc_sub_masking = "/😼> Masking"
-yanc_sub_utils = "/😼> Utils"
+yanc_sub_image = "/😼 Image"
+yanc_sub_text = "/😼 Text"
+yanc_sub_basics = "/😼 Basics"
+yanc_sub_nik = "/😼 Noise Injection Sampler"
+yanc_sub_masking = "/😼 Masking"
+yanc_sub_utils = "/😼 Utils"
 
 # ------------------------------------------------------------------------------------------------------------------ #
 # Functions                                                                                                          #
@@ -1462,8 +1462,8 @@ NODE_CLASS_MAPPINGS = {
     "> Light Source Mask": YANCLightSourceMask,
 
     # Utils
-    "> RGB To Int": YANCRGBToInt,
     "> Get Mean Color": YANCGetMeanColor,
+    "> RGB To Int": YANCRGBToInt,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
@@ -1499,6 +1499,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Light Source Mask": "😼> Light Source Mask",
 
     # Utils
-    "> RGB to Int": "😼> RGB to Int",
     "> Get Mean Color": "😼> Get Mean Color",
+    "> RGB To Int": "😼> RGB To Int"
 }
