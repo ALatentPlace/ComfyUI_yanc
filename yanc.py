@@ -1207,10 +1207,11 @@ class YANCNormalMapLighting:
                 "NormalDiffuseStrength": ("FLOAT", {"default": 1.00, "min": 0, "max": 5.0, "step": 0.01}),
                 "SpecularHighlightsStrength": ("FLOAT", {"default": 1.00, "min": 0, "max": 5.0, "step": 0.01}),
                 "TotalGain": ("FLOAT", {"default": 1.00, "min": 0, "max": 2.0, "step": 0.01}),
-                "color": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFF, "step": 1, "display": "color"}),
-                "mask": ("MASK",),
-                "erosion_size": ("INT", {"default": 5, "min": 1, "max": 50, "step": 1}),
+                "color": ("INT", {"default": 0xFFFFFF, "min": 0, "max": 0xFFFFFF, "step": 1, "display": "color"}),
             },
+            "optional": {
+                "mask": ("MASK",),
+            }
         }
 
     RETURN_TYPES = ("IMAGE",)
@@ -1222,50 +1223,41 @@ class YANCNormalMapLighting:
     def resize_tensor(self, tensor, size):
         return torch.nn.functional.interpolate(tensor, size=size, mode='bilinear', align_corners=False)
 
-    def do_it(self, diffuse_map, normal_map, specular_map, light_yaw, light_pitch, specular_power, ambient_light, NormalDiffuseStrength, SpecularHighlightsStrength, TotalGain, color, mask, erosion_size):
-        # Convert input images to tensors
+    def do_it(self, diffuse_map, normal_map, specular_map, light_yaw, light_pitch, specular_power, ambient_light, NormalDiffuseStrength, SpecularHighlightsStrength, TotalGain, color, mask=None,):
+        if mask is None:
+            mask = torch.ones_like(diffuse_map[:, :, :, 0])
+
         diffuse_tensor = diffuse_map.permute(
-            0, 3, 1, 2)  # (N, H, W, 3) -> (N, 3, H, W)
+            0, 3, 1, 2)
         normal_tensor = normal_map.permute(
-            0, 3, 1, 2) * 2.0 - 1.0  # (N, H, W, 3) -> (N, 3, H, W)
+            0, 3, 1, 2) * 2.0 - 1.0
         specular_tensor = specular_map.permute(
-            0, 3, 1, 2)  # (N, H, W, 3) -> (N, 3, H, W)
-        mask_tensor = mask.unsqueeze(1)  # Convert mask to (N, 1, H, W)
-        # Expand mask to (N, 3, H, W)
-        # Expand mask to (N, 3, H, W)
+            0, 3, 1, 2)
+        mask_tensor = mask.unsqueeze(1)
         mask_tensor = mask_tensor.expand(-1, 3, -1, -1)
 
-        # Ensure all tensors are of the same size
         target_size = (diffuse_tensor.shape[2], diffuse_tensor.shape[3])
         normal_tensor = self.resize_tensor(normal_tensor, target_size)
         specular_tensor = self.resize_tensor(specular_tensor, target_size)
         mask_tensor = self.resize_tensor(mask_tensor, target_size)
 
-        # Normalize normal vectors
         normal_tensor = torch.nn.functional.normalize(normal_tensor, dim=1)
 
-        # Reshape light_direction correctly for broadcasting
         light_direction = self.euler_to_vector(light_yaw, light_pitch, 0)
-        # Reshape to [1, 3, 1, 1] to enable broadcasting
         light_direction = light_direction.view(1, 3, 1, 1)
 
-        # Reshape camera_direction correctly for broadcasting
         camera_direction = self.euler_to_vector(0, 0, 0)
-        # Reshape to [1, 3, 1, 1] to enable broadcasting
         camera_direction = camera_direction.view(1, 3, 1, 1)
 
-        # Convert light color to tensor and prepare for calculation
         light_color = self.int_to_rgb(color)
         light_color_tensor = torch.tensor(
-            light_color).view(1, 3, 1, 1)  # [1, 3, 1, 1]
+            light_color).view(1, 3, 1, 1)
 
-        # Calculate diffuse reflection
         diffuse = torch.sum(normal_tensor * light_direction,
                             dim=1, keepdim=True)
         diffuse = torch.clamp(diffuse, 0, 1)
         diffuse = diffuse * light_color_tensor
 
-        # Calculate specular reflection
         half_vector = torch.nn.functional.normalize(
             light_direction + camera_direction, dim=1)
         specular = torch.sum(normal_tensor * half_vector, dim=1, keepdim=True)
@@ -1273,22 +1265,19 @@ class YANCNormalMapLighting:
 
         specular = specular * light_color_tensor
 
-        # Ensure the size of the diffuse and specular components match the input size
         if diffuse.shape != target_size:
             diffuse = self.resize_tensor(diffuse, target_size)
         if specular.shape != target_size:
             specular = self.resize_tensor(specular, target_size)
 
-        # Combine results of diffuse and specular reflection
         output_tensor = (diffuse_tensor * (ambient_light + diffuse * NormalDiffuseStrength) +
                          specular_tensor * specular * SpecularHighlightsStrength) * TotalGain
 
         output_tensor = output_tensor * mask_tensor + \
             diffuse_tensor * (1 - mask_tensor)
 
-        # Convert tensor to output image
         output_tensor = output_tensor.permute(
-            0, 2, 3, 1)  # (N, 3, H, W) -> (N, H, W, 3)
+            0, 2, 3, 1)
 
         return (output_tensor,)
 
@@ -1301,8 +1290,6 @@ class YANCNormalMapLighting:
         sin_pitch = np.sin(pitch_rad)
         cos_yaw = np.cos(yaw_rad)
         sin_yaw = np.sin(yaw_rad)
-        # cos_roll = np.cos(roll_rad)
-        # sin_roll = np.sin(roll_rad)
 
         direction = np.array([
             sin_yaw * cos_pitch,
@@ -1313,11 +1300,10 @@ class YANCNormalMapLighting:
         return torch.from_numpy(direction).float()
 
     def int_to_rgb(self, color_int):
-        # Extract the RGB components from the integer value
-        r = (color_int >> 16) & 0xFF  # The upper 8 bits
-        g = (color_int >> 8) & 0xFF   # The middle 8 bits
-        b = color_int & 0xFF          # The lower 8 bits
-        # Normalize the values to the range [0, 1]
+        r = (color_int >> 16) & 0xFF
+        g = (color_int >> 8) & 0xFF
+        b = color_int & 0xFF
+
         return (r / 255.0, g / 255.0, b / 255.0)
 
 
@@ -1378,11 +1364,9 @@ class YANCGetMeanColor:
                     "Mask and image spatial dimensions must match.")
 
             mask_opt = mask_opt.unsqueeze(-1)
-
             masked_image = masked_image * mask_opt
 
             num_masked_pixels = torch.sum(mask_opt)
-
             if num_masked_pixels == 0:
                 raise ValueError(
                     "No masked pixels found in the image. Please set a mask.")
@@ -1395,13 +1379,9 @@ class YANCGetMeanColor:
             g_mean = sum_g / num_masked_pixels
             b_mean = sum_b / num_masked_pixels
         else:
-            sum_r = torch.sum(masked_image[:, :, :, 0])
-            sum_g = torch.sum(masked_image[:, :, :, 1])
-            sum_b = torch.sum(masked_image[:, :, :, 2])
-
-            r_mean = sum_r
-            g_mean = sum_g
-            b_mean = sum_b
+            r_mean = torch.mean(masked_image[:, :, :, 0])
+            g_mean = torch.mean(masked_image[:, :, :, 1])
+            b_mean = torch.mean(masked_image[:, :, :, 2])
 
         r_mean_255 = r_mean.item() * 255.0
         g_mean_255 = g_mean.item() * 255.0
@@ -1419,6 +1399,10 @@ class YANCGetMeanColor:
                 (g_mean_255 / highest_value)
             b_mean_255 += diff_to_max * amp_factor * \
                 (b_mean_255 / highest_value)
+
+            r_mean_255 = min(max(r_mean_255, 0), 255)
+            g_mean_255 = min(max(g_mean_255, 0), 255)
+            b_mean_255 = min(max(b_mean_255, 0), 255)
 
         fill_value = (int(r_mean_255) << 16) + \
             (int(g_mean_255) << 8) + int(b_mean_255)
