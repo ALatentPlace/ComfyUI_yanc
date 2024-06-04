@@ -1502,6 +1502,47 @@ class YANCContrast:
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCSaturation:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "saturation": ("FLOAT", {"default": 1.0, "min": 0, "max": 2, "step": 0.01}),
+                },
+                "optional":
+                {
+                    "mask_opt": ("MASK",),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, saturation, mask_opt=None):
+
+        if mask_opt is not None:
+            mask = mask_opt.clone()
+            mask = mask.unsqueeze(1).unsqueeze(1).permute(1, 2, 0, 3)
+        else:
+            mask = torch.ones_like(image)
+            mask = permute_tt(mask)
+
+        img = image.clone()
+        img = permute_tt(img)
+        img = F.adjust_saturation(img * mask, saturation)
+        img = img + permute_tt(image) * F.invert(mask)
+        img = permute_ft(img)
+
+        return (img,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -1513,6 +1554,7 @@ NODE_CLASS_MAPPINGS = {
     "> Normal Map Lighting": YANCNormalMapLighting,
     "> Brightness": YANCBrightness,
     "> Contrast": YANCContrast,
+    "> Saturation": YANCSaturation,
 
     # Text
     "> Text": YANCText,
@@ -1552,6 +1594,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Normal Map Lighting": "😼> Normal Map Lighting",
     "> Brightness": "😼> Brightness",
     "> Contrast": "😼> Contrast",
+    "> Saturation": "😼> Saturation",
 
     # Text
     "> Text": "😼> Text",
