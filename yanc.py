@@ -35,6 +35,12 @@ def permute_to_image(image):
     image = T.ToTensor()(image).unsqueeze(0)
     return image.permute([0, 2, 3, 1])[:, :, :, :3]
 
+def permute_tt(image):
+    return image.permute(0, 3, 1, 2)
+
+def permute_ft(image):
+    return image.permute(0, 2, 3, 1)
+
 
 def to_binary_mask(image):
     images_sum = image.sum(axis=3)
@@ -1414,6 +1420,50 @@ class YANCGetMeanColor:
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCBrightness:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "brightness": ("FLOAT", {"default": 1.0, "min": 0, "max": 2, "step": 0.01}),
+                },
+                "optional":
+                {
+                    "mask_opt": ("MASK",),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, brightness, mask_opt=None):
+
+        if mask_opt is not None:
+            mask = mask_opt.clone()
+            print_brown(str(mask.shape))
+            mask = mask.unsqueeze(1).unsqueeze(1).permute(1, 2, 0, 3)
+            print_cyan(str(mask.shape))
+        else:
+            mask = torch.ones_like(image)
+            mask = permute_tt(mask)
+            print_cyan(str(mask.shape))
+
+        img = image.clone()
+        img = permute_tt(img)
+        img = F.adjust_brightness(img * mask, brightness)
+        img = img + permute_tt(image) * F.invert(mask)
+        img = permute_ft(img)
+
+        return (img,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -1423,6 +1473,7 @@ NODE_CLASS_MAPPINGS = {
     "> Save Image": YANCSaveImage,
     "> Load Image From Folder": YANCLoadImageFromFolder,
     "> Normal Map Lighting": YANCNormalMapLighting,
+    "> Brightness": YANCBrightness,
 
     # Text
     "> Text": YANCText,
@@ -1460,6 +1511,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Save Image": "😼> Save Image",
     "> Load Image From Folder": "😼> Load Image From Folder",
     "> Normal Map Lighting": "😼> Normal Map Lighting",
+    "> Brightness": "😼> Brightness",
 
     # Text
     "> Text": "😼> Text",
