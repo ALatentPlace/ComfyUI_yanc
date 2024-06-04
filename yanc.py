@@ -1446,17 +1446,55 @@ class YANCBrightness:
 
         if mask_opt is not None:
             mask = mask_opt.clone()
-            print_brown(str(mask.shape))
             mask = mask.unsqueeze(1).unsqueeze(1).permute(1, 2, 0, 3)
-            print_cyan(str(mask.shape))
         else:
             mask = torch.ones_like(image)
             mask = permute_tt(mask)
-            print_cyan(str(mask.shape))
 
         img = image.clone()
         img = permute_tt(img)
         img = F.adjust_brightness(img * mask, brightness)
+        img = img + permute_tt(image) * F.invert(mask)
+        img = permute_ft(img)
+
+        return (img,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCContrast:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "contrast": ("FLOAT", {"default": 1.0, "min": 0, "max": 2, "step": 0.01}),
+                },
+                "optional":
+                {
+                    "mask_opt": ("MASK",),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, contrast, mask_opt=None):
+
+        if mask_opt is not None:
+            mask = mask_opt.clone()
+            mask = mask.unsqueeze(1).unsqueeze(1).permute(1, 2, 0, 3)
+        else:
+            mask = torch.ones_like(image)
+            mask = permute_tt(mask)
+
+        img = image.clone()
+        img = permute_tt(img)
+        img = F.adjust_contrast(img * mask, contrast)
         img = img + permute_tt(image) * F.invert(mask)
         img = permute_ft(img)
 
@@ -1474,6 +1512,7 @@ NODE_CLASS_MAPPINGS = {
     "> Load Image From Folder": YANCLoadImageFromFolder,
     "> Normal Map Lighting": YANCNormalMapLighting,
     "> Brightness": YANCBrightness,
+    "> Contrast": YANCContrast,
 
     # Text
     "> Text": YANCText,
@@ -1512,6 +1551,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Load Image From Folder": "😼> Load Image From Folder",
     "> Normal Map Lighting": "😼> Normal Map Lighting",
     "> Brightness": "😼> Brightness",
+    "> Contrast": "😼> Contrast",
 
     # Text
     "> Text": "😼> Text",
