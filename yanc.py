@@ -810,7 +810,6 @@ class YANCScaleImageToSide:
     FUNCTION = "do_it"
 
     def do_it(self, image, scale_to, side, interpolation, modulo, mask_opt=None):
-    def do_it(self, image, scale_to, side, interpolation, modulo, mask_opt=None):
 
         image = image.movedim(-1, 1)
 
@@ -1444,7 +1443,7 @@ class YANCBrightness:
 
         if mask_opt is not None:
             mask = mask_opt.clone()
-            mask = mask.unsqueeze(1).unsqueeze(1).permute(1, 2, 0, 3)
+            mask = permute_tt(mask.unsqueeze(-1))
         else:
             mask = torch.ones_like(image)
             mask = permute_tt(mask)
@@ -1485,7 +1484,7 @@ class YANCContrast:
 
         if mask_opt is not None:
             mask = mask_opt.clone()
-            mask = mask.unsqueeze(1).unsqueeze(1).permute(1, 2, 0, 3)
+            mask = permute_tt(mask.unsqueeze(-1))
         else:
             mask = torch.ones_like(image)
             mask = permute_tt(mask)
@@ -1526,7 +1525,7 @@ class YANCSaturation:
 
         if mask_opt is not None:
             mask = mask_opt.clone()
-            mask = mask.unsqueeze(1).unsqueeze(1).permute(1, 2, 0, 3)
+            mask = permute_tt(mask.unsqueeze(-1))
         else:
             mask = torch.ones_like(image)
             mask = permute_tt(mask)
