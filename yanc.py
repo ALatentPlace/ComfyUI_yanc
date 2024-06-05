@@ -21,12 +21,13 @@ import datetime
 cat_smirk = "😼"
 
 yanc_root_name = "YANC"
-yanc_sub_image = "/😼 Image"
-yanc_sub_text = "/😼 Text"
-yanc_sub_basics = "/😼 Basics"
-yanc_sub_nik = "/😼 Noise Injection Sampler"
-yanc_sub_masking = "/😼 Masking"
-yanc_sub_utils = "/😼 Utils"
+yanc_sub_image = "/" + cat_smirk + " Image"
+yanc_sub_text = "/" + cat_smirk + " Text"
+yanc_sub_basics = "/" + cat_smirk + " Basics"
+yanc_sub_nik = "/" + cat_smirk + " Noise Injection Sampler"
+yanc_sub_masking = "/" + cat_smirk + " Masking"
+yanc_sub_utils = "/" + cat_smirk + " Utils"
+yanc_sub_post_processing = "/" + cat_smirk + " Post Processing"
 
 # ------------------------------------------------------------------------------------------------------------------ #
 # Functions                                                                                                          #
@@ -1435,7 +1436,7 @@ class YANCBrightness:
                 }
                 }
 
-    CATEGORY = yanc_root_name + yanc_sub_image
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
 
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("image",)
@@ -1476,7 +1477,7 @@ class YANCContrast:
                 }
                 }
 
-    CATEGORY = yanc_root_name + yanc_sub_image
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
 
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("image",)
@@ -1517,7 +1518,7 @@ class YANCSaturation:
                 }
                 }
 
-    CATEGORY = yanc_root_name + yanc_sub_image
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
 
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("image",)
@@ -1558,7 +1559,7 @@ class YANCSharpen:
                 }
                 }
 
-    CATEGORY = yanc_root_name + yanc_sub_image
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
 
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("image",)
@@ -1594,7 +1595,7 @@ class YANCDivideChannels:
                 },
                 }
 
-    CATEGORY = yanc_root_name + yanc_sub_image
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
 
     RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE", "IMAGE",)
     RETURN_NAMES = ("image", "red", "green", "blue")
@@ -1631,7 +1632,7 @@ class YANCCombineChannels:
                 },
                 }
 
-    CATEGORY = yanc_root_name + yanc_sub_image
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
 
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("image",)
@@ -1653,6 +1654,8 @@ NODE_CLASS_MAPPINGS = {
     "> Save Image": YANCSaveImage,
     "> Load Image From Folder": YANCLoadImageFromFolder,
     "> Normal Map Lighting": YANCNormalMapLighting,
+
+    # Post Processing
     "> Brightness": YANCBrightness,
     "> Contrast": YANCContrast,
     "> Saturation": YANCSaturation,
@@ -1689,42 +1692,44 @@ NODE_CLASS_MAPPINGS = {
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
     # Image
-    "> Rotate Image": "😼> Rotate Image",
-    "> Scale Image to Side": "😼> Scale Image to Side",
-    "> Resolution by Aspect Ratio": "😼> Resolution by Aspect Ratio",
-    "> Load Image": "😼> Load Image",
-    "> Save Image": "😼> Save Image",
-    "> Load Image From Folder": "😼> Load Image From Folder",
-    "> Normal Map Lighting": "😼> Normal Map Lighting",
-    "> Brightness": "😼> Brightness",
-    "> Contrast": "😼> Contrast",
-    "> Saturation": "😼> Saturation",
-    "> Sharpen": "😼> Sharpen",
-    "> Divide Channels": "😼> Divide Channels",
+    "> Rotate Image": cat_smirk + "> Rotate Image",
+    "> Scale Image to Side": cat_smirk + "> Scale Image to Side",
+    "> Resolution by Aspect Ratio": cat_smirk + "> Resolution by Aspect Ratio",
+    "> Load Image": cat_smirk + "> Load Image",
+    "> Save Image": cat_smirk + "> Save Image",
+    "> Load Image From Folder": cat_smirk + "> Load Image From Folder",
+    "> Normal Map Lighting": cat_smirk + "> Normal Map Lighting",
+
+    # Post Processing
+    "> Brightness": cat_smirk + "> Brightness",
+    "> Contrast": cat_smirk + "> Contrast",
+    "> Saturation": cat_smirk + "> Saturation",
+    "> Sharpen": cat_smirk + "> Sharpen",
+    "> Divide Channels": cat_smirk + "> Divide Channels",
     "> Combine Channels": cat_smirk + "> Combine Channels",
 
     # Text
-    "> Text": "😼> Text",
-    "> Text Combine": "😼> Text Combine",
-    "> Text Pick Random Line": "😼> Text Pick Random Line",
-    "> Clear Text": "😼> Clear Text",
-    "> Text Replace": "😼> Text Replace",
-    "> Text Random Weights": "😼> Text Random Weights",
+    "> Text": cat_smirk + "> Text",
+    "> Text Combine": cat_smirk + "> Text Combine",
+    "> Text Pick Random Line": cat_smirk + "> Text Pick Random Line",
+    "> Clear Text": cat_smirk + "> Clear Text",
+    "> Text Replace": cat_smirk + "> Text Replace",
+    "> Text Random Weights": cat_smirk + "> Text Random Weights",
 
     # Basics
-    "> Int to Text": "😼> Int to Text",
-    "> Int": "😼> Int",
-    "> Float to Int": "😼> Float to Int",
+    "> Int to Text": cat_smirk + "> Int to Text",
+    "> Int": cat_smirk + "> Int",
+    "> Float to Int": cat_smirk + "> Float to Int",
 
     # Noise Injection Sampler
-    "> NIKSampler": "😼> NIKSampler",
-    "> Noise From Image": "😼> Noise From Image",
+    "> NIKSampler": cat_smirk + "> NIKSampler",
+    "> Noise From Image": cat_smirk + "> Noise From Image",
 
     # Masking
-    "> Mask Curves": "😼> Mask Curves",
-    "> Light Source Mask": "😼> Light Source Mask",
+    "> Mask Curves": cat_smirk + "> Mask Curves",
+    "> Light Source Mask": cat_smirk + "> Light Source Mask",
 
     # Utils
-    "> Get Mean Color": "😼> Get Mean Color",
-    "> RGB To Int": "😼> RGB To Int"
+    "> Get Mean Color": cat_smirk + "> Get Mean Color",
+    "> RGB To Int": cat_smirk + "> RGB To Int"
 }
