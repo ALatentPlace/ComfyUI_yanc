@@ -2,7 +2,7 @@ import torch
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
 import torch.nn.functional as NNF
-from PIL import Image, ImageSequence, ImageOps
+from PIL import Image, ImageSequence, ImageOps, ImageFilter
 from PIL.PngImagePlugin import PngInfo
 import random
 import folder_paths
@@ -38,11 +38,23 @@ def permute_to_image(image):
     image = T.ToTensor()(image).unsqueeze(0)
     return image.permute([0, 2, 3, 1])[:, :, :, :3]
 
+
 def permute_tt(image):
     return image.permute(0, 3, 1, 2)
 
+
 def permute_ft(image):
     return image.permute(0, 2, 3, 1)
+
+
+# From WAS Node Suite: https://github.com/WASasquatch/was-node-suite-comfyui
+def tensor2pil(image):
+    return Image.fromarray(np.clip(255. * image.cpu().numpy().squeeze(), 0, 255).astype(np.uint8))
+
+
+# From WAS Node Suite: https://github.com/WASasquatch/was-node-suite-comfyui
+def pil2tensor(image):
+    return torch.from_numpy(np.array(image).astype(np.float32) / 255.0).unsqueeze(0)
 
 
 def to_binary_mask(image):
@@ -1645,6 +1657,47 @@ class YANCCombineChannels:
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCEdgeEnhance:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "edge_enhance": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                },
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, edge_enhance):
+
+        img = image.clone()
+        img_orig = image.clone()
+        processed_images = []
+
+        for i in range(img.shape[0]):
+            tensor = tensor2pil(img[i])
+            tensor = tensor.filter(ImageFilter.EDGE_ENHANCE_MORE)
+            tensor = pil2tensor(tensor)
+
+            blended_image = edge_enhance * tensor + \
+                (1 - edge_enhance) * img_orig[i]
+            blended_image = torch.clamp(blended_image, 0, 1)
+
+            processed_images.append(blended_image)
+
+        result = torch.cat(processed_images, dim=0)
+
+        return (result,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -1662,6 +1715,7 @@ NODE_CLASS_MAPPINGS = {
     "> Sharpen": YANCSharpen,
     "> Divide Channels": YANCDivideChannels,
     "> Combine Channels": YANCCombineChannels,
+    "> Edge Enhance": YANCEdgeEnhance,
 
     # Text
     "> Text": YANCText,
@@ -1707,6 +1761,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Sharpen": cat_smirk + "> Sharpen",
     "> Divide Channels": cat_smirk + "> Divide Channels",
     "> Combine Channels": cat_smirk + "> Combine Channels",
+    "> Edge Enhance": cat_smirk + "> Edge Enhance",
 
     # Text
     "> Text": cat_smirk + "> Text",
