@@ -810,6 +810,7 @@ class YANCScaleImageToSide:
     FUNCTION = "do_it"
 
     def do_it(self, image, scale_to, side, interpolation, modulo, mask_opt=None):
+    def do_it(self, image, scale_to, side, interpolation, modulo, mask_opt=None):
 
         image = image.movedim(-1, 1)
 
@@ -850,10 +851,7 @@ class YANCScaleImageToSide:
             mask_opt = NNF.interpolate(mask_opt, size=(
                 new_height, new_width), mode='bilinear', align_corners=False)
 
-            mask_opt = mask_opt.squeeze(0)
-            mask_opt = mask_opt.squeeze(0)
-
-            mask_opt = mask_opt.permute(0, 1)
+            mask_opt = mask_opt.squeeze(0).permute(0, 1, 2)
 
         image = image.movedim(1, -1)
 
