@@ -18,6 +18,8 @@ import json
 import math
 import datetime
 
+cat_smirk = "😼"
+
 yanc_root_name = "YANC"
 yanc_sub_image = "/😼 Image"
 yanc_sub_text = "/😼 Text"
@@ -1425,7 +1427,7 @@ class YANCBrightness:
         return {"required":
                 {
                     "image": ("IMAGE",),
-                    "brightness": ("FLOAT", {"default": 1.0, "min": 0, "max": 2, "step": 0.01}),
+                    "brightness": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
                 },
                 "optional":
                 {
@@ -1466,7 +1468,7 @@ class YANCContrast:
         return {"required":
                 {
                     "image": ("IMAGE",),
-                    "contrast": ("FLOAT", {"default": 1.0, "min": 0, "max": 2, "step": 0.01}),
+                    "contrast": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
                 },
                 "optional":
                 {
@@ -1507,7 +1509,7 @@ class YANCSaturation:
         return {"required":
                 {
                     "image": ("IMAGE",),
-                    "saturation": ("FLOAT", {"default": 1.0, "min": 0, "max": 2, "step": 0.01}),
+                    "saturation": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
                 },
                 "optional":
                 {
@@ -1540,6 +1542,108 @@ class YANCSaturation:
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCSharpen:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "sharpen": ("FLOAT", {"default": 1.0, "min": 1.0, "max": 5.0, "step": 0.01}),
+                },
+                "optional":
+                {
+                    "mask_opt": ("MASK",),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, sharpen, mask_opt=None):
+
+        if mask_opt is not None:
+            mask = mask_opt.clone()
+            mask = permute_tt(mask.unsqueeze(-1))
+        else:
+            mask = torch.ones_like(image)
+            mask = permute_tt(mask)
+
+        img = image.clone()
+        img = permute_tt(img)
+        img = F.adjust_sharpness(img * mask, sharpen)
+        img = img + permute_tt(image) * F.invert(mask)
+        img = permute_ft(img)
+
+        return (img,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCDivideChannels:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                },
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image
+
+    RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE", "IMAGE",)
+    RETURN_NAMES = ("image", "red", "green", "blue")
+    FUNCTION = "do_it"
+
+    def do_it(self, image,):
+        img = image.clone()
+
+        red_channel = image.clone()
+        green_channel = image.clone()
+        blue_channel = image.clone()
+
+        red_channel[:, :, :, 1] = 0
+        red_channel[:, :, :, 2] = 0
+        green_channel[:, :, :, 0] = 0
+        green_channel[:, :, :, 2] = 0
+        blue_channel[:, :, :, 0] = 0
+        blue_channel[:, :, :, 1] = 0
+
+        return (img, red_channel, green_channel, blue_channel,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCCombineChannels:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "red": ("IMAGE",),
+                    "green": ("IMAGE",),
+                    "blue": ("IMAGE",),
+                },
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, red, green, blue):
+        img = red + green + blue
+
+        return (img,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -1552,6 +1656,9 @@ NODE_CLASS_MAPPINGS = {
     "> Brightness": YANCBrightness,
     "> Contrast": YANCContrast,
     "> Saturation": YANCSaturation,
+    "> Sharpen": YANCSharpen,
+    "> Divide Channels": YANCDivideChannels,
+    "> Combine Channels": YANCCombineChannels,
 
     # Text
     "> Text": YANCText,
@@ -1592,6 +1699,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Brightness": "😼> Brightness",
     "> Contrast": "😼> Contrast",
     "> Saturation": "😼> Saturation",
+    "> Sharpen": "😼> Sharpen",
+    "> Divide Channels": "😼> Divide Channels",
+    "> Combine Channels": cat_smirk + "> Combine Channels",
 
     # Text
     "> Text": "😼> Text",
