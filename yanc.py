@@ -1698,6 +1698,54 @@ class YANCEdgeEnhance:
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCBloom:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "intensity": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                },
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, intensity):
+
+        intensity = intensity * 1.2
+
+        blur_radius_per_pixel = 0.1 * intensity
+        blur_radius = blur_radius_per_pixel * min(image.shape[1], image.shape[2])
+
+        threshold = 0.5
+        threshold_offset_factor = 0.1
+
+        if intensity > 0.24:
+            threshold -= threshold_offset_factor
+        elif intensity > 0.49:
+            threshold -= threshold_offset_factor
+        elif intensity > 0.74:
+            threshold -= threshold_offset_factor
+
+        bright_areas = (image >= image.max() * threshold).float() * (image <= image.max()).float()
+
+        blurred_img = tensor2pil(bright_areas)
+        blurred_img = blurred_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+        bright_areas = pil2tensor(blurred_img)
+
+        bloom_image = image + intensity * bright_areas
+        bloom_image = torch.clamp(bloom_image, 0, 1)
+
+        return (bloom_image,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -1716,6 +1764,7 @@ NODE_CLASS_MAPPINGS = {
     "> Divide Channels": YANCDivideChannels,
     "> Combine Channels": YANCCombineChannels,
     "> Edge Enhance": YANCEdgeEnhance,
+    "> Bloom": YANCBloom,
 
     # Text
     "> Text": YANCText,
@@ -1762,6 +1811,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Divide Channels": cat_smirk + "> Divide Channels",
     "> Combine Channels": cat_smirk + "> Combine Channels",
     "> Edge Enhance": cat_smirk + "> Edge Enhance",
+    "> Bloom": cat_smirk  + "> Bloom",
 
     # Text
     "> Text": cat_smirk + "> Text",
