@@ -1746,6 +1746,57 @@ class YANCBloom:
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCBlur:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "intensity": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                },
+                "optional":
+                {
+                    "mask_opt": ("MASK",),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, intensity, mask_opt=None):
+
+        img = image.clone()
+
+        blur_radius_per_pixel = 0.02 * intensity
+        blur_radius = blur_radius_per_pixel * min(image.shape[1], image.shape[2])
+
+        blurred_img = tensor2pil(img)
+        blurred_img = blurred_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+        blurred_img = pil2tensor(blurred_img)
+
+        print_cyan("IMG: " + str(img.shape))
+        print_green("BLURRED: " + str(blurred_img.shape))
+
+        if mask_opt is not None:
+            mask_opt = mask_opt.unsqueeze(3)
+            mask_opt = mask_opt.float()
+            mask_opt = mask_opt / mask_opt.max()
+
+            img = (img * mask_opt) + (blurred_img * (1 - mask_opt))
+        else:
+            img = blurred_img
+
+        img = torch.clamp(img, 0, 1)
+
+        return (img,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -1765,6 +1816,7 @@ NODE_CLASS_MAPPINGS = {
     "> Combine Channels": YANCCombineChannels,
     "> Edge Enhance": YANCEdgeEnhance,
     "> Bloom": YANCBloom,
+    "> Blur": YANCBlur,
 
     # Text
     "> Text": YANCText,
@@ -1812,6 +1864,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Combine Channels": cat_smirk + "> Combine Channels",
     "> Edge Enhance": cat_smirk + "> Edge Enhance",
     "> Bloom": cat_smirk  + "> Bloom",
+    "> Blur": cat_smirk + "> Blur",
 
     # Text
     "> Text": cat_smirk + "> Text",
