@@ -527,7 +527,9 @@ class YANCSaveImage:
                  "filename_prefix": ("STRING", {"default": "ComfyUI"}),
                  "folder": ("STRING", {"default": ""}),
                  "overwrite_warning": ("BOOLEAN", {"default": False}),
-                 "include_metadata": ("BOOLEAN", {"default": True})
+                 "include_metadata": ("BOOLEAN", {"default": True}),
+                 "extension": (["png", "jpg"],),
+                 "quality": ("INT", {"default": 95, "min": 0, "max": 100}),
                  },
                 "optional":
                     {"filename_opt": ("STRING", {"forceInput": True})},
@@ -541,7 +543,7 @@ class YANCSaveImage:
 
     CATEGORY = "YANC"
 
-    def do_it(self, images, overwrite_warning, include_metadata, filename_opt=None, folder=None, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None,):
+    def do_it(self, images, overwrite_warning, include_metadata, extension, quality, filename_opt=None, folder=None, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None,):
 
         if folder:
             filename_prefix += self.prefix_append
@@ -560,13 +562,6 @@ class YANCSaveImage:
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             metadata = None
-            if not args.disable_metadata and include_metadata:
-                metadata = PngInfo()
-                if prompt is not None:
-                    metadata.add_text("prompt", json.dumps(prompt))
-                if extra_pnginfo is not None:
-                    for x in extra_pnginfo:
-                        metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
             if not filename_opt:
 
@@ -590,10 +585,10 @@ class YANCSaveImage:
                         )
                         counter = max_counter + 1
 
-                file = f"{filename_with_batch_num}_{counter:05}.png"
+                file = f"{filename_with_batch_num}_{counter:05}.{extension}"
             else:
                 if len(images) == 1:
-                    file = f"{filename_opt}.png"
+                    file = f"{filename_opt}.{extension}"
                 else:
                     raise Exception(
                         "Multiple images and filename detected: Images will overwrite themselves!")
@@ -603,8 +598,31 @@ class YANCSaveImage:
             if os.path.exists(save_path) and overwrite_warning:
                 raise Exception("Filename already exists.")
             else:
-                img.save(save_path, pnginfo=metadata,
-                         compress_level=self.compress_level)
+                if extension == "png":
+                    if not args.disable_metadata and include_metadata:
+                        metadata = PngInfo()
+                        if prompt is not None:
+                            metadata.add_text("prompt", json.dumps(prompt))
+                        if extra_pnginfo is not None:
+                            for x in extra_pnginfo:
+                                metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+
+                    img.save(save_path, pnginfo=metadata,
+                            compress_level=self.compress_level)
+                elif extension == "jpg":
+                    if not args.disable_metadata and include_metadata:
+                        metadata = {}
+
+                        if prompt is not None:
+                            metadata["prompt"] = prompt
+                        if extra_pnginfo is not None:
+                            for key, value in extra_pnginfo.items():
+                                metadata[key] = value
+
+                        metadata_json = json.dumps(metadata)
+                        img.info["comment"] = metadata_json
+
+                    img.save(save_path, quality=quality)
 
             results.append({
                 "filename": file,
