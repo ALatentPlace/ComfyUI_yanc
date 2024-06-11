@@ -4,6 +4,8 @@ This is another node collection for ComfyUI. It includes some basic nodes that I
 
 ## Latest Updates
 
+**2024/06/10**: Added RGBColor, GetMeanColor and NormalMapLighting.
+
 **2024/05/27**: Added LightSourceMask and mask support for the rescale image node.
 
 **2024/05/17**: Added NIKSampler and "Noise From Image"
@@ -70,6 +72,8 @@ You can also find me on [Discord][discordlink].
 | blend_mode | Used to blend over batched images. Switched to "off" the node will create noise for every batched image sent in. |
 | blend_rate | The blend intensity of batched images. Only works in combination with the blend_mode. Batched images are blended one after the other, so first image 2 on image 1, then image 3 on the result of the first blending (and so on). |
 
+**Normal Map Lighting**: When providing a diffuse map, a normal map and a specular map you can change the lighting of an image. Tutorial available on my YouTube channel.
+
 ### Text
 
 **Text**: A simple multiline text node.
@@ -101,6 +105,12 @@ You can also find me on [Discord][discordlink].
 ### Masking
 
 **Light Source Mask**: A node which takes the brightest parts of an image (can be adjusted with a threshold) and creates a blurred mask.
+
+### Utils
+
+**Get Mean Color**: Gets the mean color of the provided image. By applying a mask you can chose the area of which you want to get the mean color value.
+
+**RGB Color**: A helper node to create RGB colors. Outputs an INT value for the color as well as for each channel. Also export the color in HEX format.
 
 ## Demo Workflows
 
