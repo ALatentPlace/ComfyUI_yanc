@@ -1797,6 +1797,50 @@ class YANCBlur:
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCVignette:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "intensity": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, intensity):
+
+        img = image.clone()
+
+        _, H, W, C = img.shape
+
+        Y, X = torch.meshgrid(torch.linspace(-1, 1, H), torch.linspace(-1, 1, W))
+
+        D = torch.sqrt(X**2 + Y**2)
+
+        sigma = intensity
+        vignette = torch.exp(-D**2 / (2 * sigma**2))
+
+        vignette = vignette.unsqueeze(-1)
+        vignette = vignette.expand(1, H, W, C)
+
+        vignetted_image = img * vignette
+
+        print_green(str(vignetted_image.shape))
+
+        vignetted_image = vignetted_image.permute(0, 1, 2, 3)
+
+        return (vignetted_image,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -1817,6 +1861,7 @@ NODE_CLASS_MAPPINGS = {
     "> Edge Enhance": YANCEdgeEnhance,
     "> Bloom": YANCBloom,
     "> Blur": YANCBlur,
+    "> Vignette": YANCVignette,
 
     # Text
     "> Text": YANCText,
@@ -1865,6 +1910,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Edge Enhance": cat_smirk + "> Edge Enhance",
     "> Bloom": cat_smirk  + "> Bloom",
     "> Blur": cat_smirk + "> Blur",
+    "> Vignette": cat_smirk + "> Vignette",
 
     # Text
     "> Text": cat_smirk + "> Text",
