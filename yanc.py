@@ -1721,7 +1721,8 @@ class YANCBloom:
         intensity = intensity * 1.2
 
         blur_radius_per_pixel = 0.1 * intensity
-        blur_radius = blur_radius_per_pixel * min(image.shape[1], image.shape[2])
+        blur_radius = blur_radius_per_pixel * \
+            min(image.shape[1], image.shape[2])
 
         threshold = 0.5
         threshold_offset_factor = 0.1
@@ -1733,10 +1734,12 @@ class YANCBloom:
         elif intensity > 0.74:
             threshold -= threshold_offset_factor
 
-        bright_areas = (image >= image.max() * threshold).float() * (image <= image.max()).float()
+        bright_areas = (image >= image.max() * threshold).float() * \
+            (image <= image.max()).float()
 
         blurred_img = tensor2pil(bright_areas)
-        blurred_img = blurred_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+        blurred_img = blurred_img.filter(
+            ImageFilter.GaussianBlur(radius=blur_radius))
         bright_areas = pil2tensor(blurred_img)
 
         bloom_image = image + intensity * bright_areas
@@ -1773,10 +1776,12 @@ class YANCBlur:
         img = image.clone()
 
         blur_radius_per_pixel = 0.02 * intensity
-        blur_radius = blur_radius_per_pixel * min(image.shape[1], image.shape[2])
+        blur_radius = blur_radius_per_pixel * \
+            min(image.shape[1], image.shape[2])
 
         blurred_img = tensor2pil(img)
-        blurred_img = blurred_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+        blurred_img = blurred_img.filter(
+            ImageFilter.GaussianBlur(radius=blur_radius))
         blurred_img = pil2tensor(blurred_img)
 
         print_cyan("IMG: " + str(img.shape))
@@ -1805,7 +1810,7 @@ class YANCVignette:
         return {"required":
                 {
                     "image": ("IMAGE",),
-                    "intensity": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    "intensity": ("FLOAT", {"default": 0.0, "min": -1.0, "max": 1.0, "step": 0.01}),
                 }
                 }
 
@@ -1818,10 +1823,12 @@ class YANCVignette:
     def do_it(self, image, intensity):
 
         img = image.clone()
+        intensity = 1 - intensity
 
         _, H, W, C = img.shape
 
-        Y, X = torch.meshgrid(torch.linspace(-1, 1, H), torch.linspace(-1, 1, W))
+        Y, X = torch.meshgrid(torch.linspace(-1, 1, H),
+                              torch.linspace(-1, 1, W))
 
         D = torch.sqrt(X**2 + Y**2)
 
@@ -1832,9 +1839,6 @@ class YANCVignette:
         vignette = vignette.expand(1, H, W, C)
 
         vignetted_image = img * vignette
-
-        print_green(str(vignetted_image.shape))
-
         vignetted_image = vignetted_image.permute(0, 1, 2, 3)
 
         return (vignetted_image,)
@@ -1908,7 +1912,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Divide Channels": cat_smirk + "> Divide Channels",
     "> Combine Channels": cat_smirk + "> Combine Channels",
     "> Edge Enhance": cat_smirk + "> Edge Enhance",
-    "> Bloom": cat_smirk  + "> Bloom",
+    "> Bloom": cat_smirk + "> Bloom",
     "> Blur": cat_smirk + "> Blur",
     "> Vignette": cat_smirk + "> Vignette",
 
