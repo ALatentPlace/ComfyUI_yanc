@@ -1,0 +1,14 @@
+[project]
+name = "comfyui_yanc"
+description = "Yet Another Node Collection. Adds some useful nodes, check out the GitHub page for more details."
+version = "1.0.0"
+license = "LICENSE"
+
+[project.urls]
+Repository = "https://github.com/ALatentPlace/ComfyUI_yanc"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "ComfyUI_yanc"
+Icon = ""
