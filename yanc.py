@@ -1811,6 +1811,8 @@ class YANCVignette:
                 {
                     "image": ("IMAGE",),
                     "intensity": ("FLOAT", {"default": 0.0, "min": -1.0, "max": 1.0, "step": 0.01}),
+                    "opacity": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    "color": (["black", "white"],),
                 }
                 }
 
@@ -1820,26 +1822,27 @@ class YANCVignette:
     RETURN_NAMES = ("image",)
     FUNCTION = "do_it"
 
-    def do_it(self, image, intensity):
-
+    def do_it(self, image, intensity, opacity, color):
         img = image.clone()
         intensity = 1 - intensity
 
         _, H, W, C = img.shape
 
-        Y, X = torch.meshgrid(torch.linspace(-1, 1, H),
-                              torch.linspace(-1, 1, W))
-
+        Y, X = torch.meshgrid(torch.linspace(-1, 1, H), torch.linspace(-1, 1, W))
         D = torch.sqrt(X**2 + Y**2)
 
         sigma = intensity
         vignette = torch.exp(-D**2 / (2 * sigma**2))
 
-        vignette = vignette.unsqueeze(-1)
-        vignette = vignette.expand(1, H, W, C)
-
-        vignetted_image = img * vignette
-        vignetted_image = vignetted_image.permute(0, 1, 2, 3)
+        vignette = vignette.unsqueeze(-1).expand(1, H, W, C)
+        
+        if color == 'white':
+            white_img = torch.ones_like(img)
+            white_img *= opacity
+            vignetted_image = img + (1 - vignette) * (white_img - img)
+        else:
+            img *= opacity
+            vignetted_image = img * vignette
 
         return (vignetted_image,)
 
