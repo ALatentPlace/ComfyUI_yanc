@@ -1810,7 +1810,7 @@ class YANCVignette:
         return {"required":
                 {
                     "image": ("IMAGE",),
-                    "intensity": ("FLOAT", {"default": 0.0, "min": -1.0, "max": 1.0, "step": 0.01}),
+                    "intensity": ("FLOAT", {"default": 0.25, "min": -1.0, "max": 1.0, "step": 0.01}),
                     "opacity": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                     "color": (["black", "white"],),
                 }
@@ -1838,11 +1838,10 @@ class YANCVignette:
         
         if color == 'white':
             white_img = torch.ones_like(img)
-            white_img *= opacity
-            vignetted_image = img + (1 - vignette) * (white_img - img)
+            vignetted_image = img + ((1 - vignette) * (white_img - img) * opacity)
         else:
-            img *= opacity
-            vignetted_image = img * vignette
+            black_image = torch.zeros_like(img)
+            vignetted_image = img + ((1 - vignette) * (black_image - img) * opacity)
 
         return (vignetted_image,)
 
