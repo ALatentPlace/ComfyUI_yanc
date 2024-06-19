@@ -1844,6 +1844,62 @@ class YANCVignette:
             vignetted_image = img + ((1 - vignette) * (black_image - img) * opacity)
 
         return (vignetted_image,)
+    
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCFog:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "depth_map": ("MASK",),
+                    "fog_intensity": ("FLOAT", {"default": 0.25, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    "fog_front": ("FLOAT", {"default": 0.00, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    "fog_back": ("FLOAT", {"default": 1.00, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    "fog_color": ("INT", {"default": 0xFFFFFF, "min": 0, "max": 0xFFFFFF, "step": 1, "display": "color"}),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, depth_map, fog_color, fog_front, fog_back, fog_intensity):
+
+        B, H, W, C = image.shape
+
+        if depth_map.shape[1] != H or depth_map.shape[2] != W:
+            depth_map = NNF.interpolate(depth_map.unsqueeze(1), size=(H, W), mode='bilinear', align_corners=False).squeeze(1)
+
+        # Normalize depth map to range between 0 and 1
+        depth_min = depth_map.min(dim=1, keepdim=True)[0].min(dim=1, keepdim=True)[0]
+        depth_max = depth_map.max(dim=1, keepdim=True)[0].max(dim=1, keepdim=True)[0]
+        depth_normalized = (depth_map - depth_min) / (depth_max - depth_min)
+        depth_normalized = depth_normalized.unsqueeze(-1).expand(-1, -1, -1, C)  # Shape: (B, H, W, C)
+
+        depth_normalized = 1 - depth_normalized
+        depth_normalized = depth_normalized.clamp(fog_front, fog_back)
+
+        # Compute the fog factor based on depth
+        fog_factor = torch.clamp(depth_normalized * fog_intensity, 0, 1)
+
+        r = (fog_color >> 16) & 0xFF
+        g = (fog_color >> 8) & 0xFF
+        b = fog_color & 0xFF
+        fog_color = torch.tensor([r, g, b], dtype=torch.float32) / 255.0
+
+        # Expand fog_color to match the image shape
+        fog_color = fog_color.view(1, 1, 1, C).expand(B, H, W, C)
+
+        # Apply fog effect
+        foggy_image = image * (1 - fog_factor) + fog_color * fog_factor
+
+        return (foggy_image,)
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
@@ -1868,6 +1924,7 @@ NODE_CLASS_MAPPINGS = {
     "> Bloom": YANCBloom,
     "> Blur": YANCBlur,
     "> Vignette": YANCVignette,
+    "> Fog": YANCFog,
 
     # Text
     "> Text": YANCText,
@@ -1917,6 +1974,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Bloom": cat_smirk + "> Bloom",
     "> Blur": cat_smirk + "> Blur",
     "> Vignette": cat_smirk + "> Vignette",
+    "> Fog": cat_smirk + "> Fog",
 
     # Text
     "> Text": cat_smirk + "> Text",
