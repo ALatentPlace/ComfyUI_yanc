@@ -1828,23 +1828,26 @@ class YANCVignette:
 
         _, H, W, C = img.shape
 
-        Y, X = torch.meshgrid(torch.linspace(-1, 1, H), torch.linspace(-1, 1, W))
+        Y, X = torch.meshgrid(torch.linspace(-1, 1, H),
+                              torch.linspace(-1, 1, W))
         D = torch.sqrt(X**2 + Y**2)
 
         sigma = intensity
         vignette = torch.exp(-D**2 / (2 * sigma**2))
 
         vignette = vignette.unsqueeze(-1).expand(1, H, W, C)
-        
+
         if color == 'white':
             white_img = torch.ones_like(img)
-            vignetted_image = img + ((1 - vignette) * (white_img - img) * opacity)
+            vignetted_image = img + \
+                ((1 - vignette) * (white_img - img) * opacity)
         else:
             black_image = torch.zeros_like(img)
-            vignetted_image = img + ((1 - vignette) * (black_image - img) * opacity)
+            vignetted_image = img + \
+                ((1 - vignette) * (black_image - img) * opacity)
 
         return (vignetted_image,)
-    
+
 
 # ------------------------------------------------------------------------------------------------------------------ #
 
@@ -1874,13 +1877,17 @@ class YANCFog:
         B, H, W, C = image.shape
 
         if depth_map.shape[1] != H or depth_map.shape[2] != W:
-            depth_map = NNF.interpolate(depth_map.unsqueeze(1), size=(H, W), mode='bilinear', align_corners=False).squeeze(1)
+            depth_map = NNF.interpolate(depth_map.unsqueeze(1), size=(
+                H, W), mode='bilinear', align_corners=False).squeeze(1)
 
         # Normalize depth map to range between 0 and 1
-        depth_min = depth_map.min(dim=1, keepdim=True)[0].min(dim=1, keepdim=True)[0]
-        depth_max = depth_map.max(dim=1, keepdim=True)[0].max(dim=1, keepdim=True)[0]
+        depth_min = depth_map.min(dim=1, keepdim=True)[
+            0].min(dim=1, keepdim=True)[0]
+        depth_max = depth_map.max(dim=1, keepdim=True)[
+            0].max(dim=1, keepdim=True)[0]
         depth_normalized = (depth_map - depth_min) / (depth_max - depth_min)
-        depth_normalized = depth_normalized.unsqueeze(-1).expand(-1, -1, -1, C)  # Shape: (B, H, W, C)
+        # Shape: (B, H, W, C)
+        depth_normalized = depth_normalized.unsqueeze(-1).expand(-1, -1, -1, C)
 
         depth_normalized = 1 - depth_normalized
         depth_normalized = depth_normalized.clamp(fog_front, fog_back)
@@ -1900,6 +1907,59 @@ class YANCFog:
         foggy_image = image * (1 - fog_factor) + fog_color * fog_factor
 
         return (foggy_image,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCScanlines:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    # "depth_map": ("MASK",),
+                    "intensity": ("INT", {"default": 50, "min": 1, "max": 100, "step": 1}),
+                    # "fog_front": ("FLOAT", {"default": 0.00, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    # "fog_back": ("FLOAT", {"default": 1.00, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    "line_thickness": ("INT", {"default": 5, "min": 1, "max": 100, "step": 1, "display": "color"}),
+                    "line_distance": ("INT", {"default": 4, "min": 1, "max": 100, "step": 1, "display": "color"}),
+                    "direction": (["horizontal", "vertical"],)
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE", "IMAGE",)
+    RETURN_NAMES = ("image", "image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, intensity, line_thickness, line_distance, direction):
+        B, height, width, C = image.shape
+
+        intensity = 100 - intensity
+
+        mask = torch.zeros((height, width), dtype=torch.float32)
+
+        if direction == 'horizontal':
+            for i in range(0, height, line_thickness):
+                for j in range(line_thickness):
+                    fade = torch.exp(-torch.abs(torch.tensor(j - (line_thickness / 2), dtype=torch.float32)) / (intensity / 4))  # Exponentieller Fade
+                    if i + j < height:
+                        mask[i + j, :] = fade
+        elif direction == 'vertical':
+            for j in range(0, width, line_thickness):
+                for i in range(line_thickness):
+                    fade = torch.exp(-torch.abs(torch.tensor(i - (line_thickness / 2), dtype=torch.float32)) / (intensity / 4))  # Exponentieller Fade
+                    if j + i < width:
+                        mask[:, j + i] = fade
+
+        # Maske auf die richtigen Dimensionen erweitern (B, H, W, C)
+        mask = mask.unsqueeze(0).unsqueeze(3).expand(B, height, width, C)
+
+        output_image = image * mask
+
+        return (output_image, mask)
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
@@ -1925,6 +1985,7 @@ NODE_CLASS_MAPPINGS = {
     "> Blur": YANCBlur,
     "> Vignette": YANCVignette,
     "> Fog": YANCFog,
+    "> Scanlines": YANCScanlines,
 
     # Text
     "> Text": YANCText,
@@ -1975,6 +2036,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Blur": cat_smirk + "> Blur",
     "> Vignette": cat_smirk + "> Vignette",
     "> Fog": cat_smirk + "> Fog",
+    "> Scanlines": cat_smirk + "> Scanlines",
 
     # Text
     "> Text": cat_smirk + "> Text",
