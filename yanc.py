@@ -204,6 +204,27 @@ def darken_blend(base, blend):
     return torch.min(base, blend)
 
 
+# From https://github.com/BlenderNeko/ComfyUI_Noise/
+def slerp(val, low, high):
+    dims = low.shape
+
+    low = low.reshape(dims[0], -1)
+    high = high.reshape(dims[0], -1)
+
+    low_norm = low/torch.norm(low, dim=1, keepdim=True)
+    high_norm = high/torch.norm(high, dim=1, keepdim=True)
+
+    low_norm[low_norm != low_norm] = 0.0
+    high_norm[high_norm != high_norm] = 0.0
+
+    omega = torch.acos((low_norm*high_norm).sum(1))
+    so = torch.sin(omega)
+    res = (torch.sin((1.0-val)*omega)/so).unsqueeze(1) * \
+        low + (torch.sin(val*omega)/so).unsqueeze(1) * high
+
+    return res.reshape(dims)
+
+
 # ------------------------------------------------------------------------------------------------------------------ #
 # Comfy classes                                                                                                      #
 # ------------------------------------------------------------------------------------------------------------------ #
@@ -1918,12 +1939,8 @@ class YANCScanlines:
         return {"required":
                 {
                     "image": ("IMAGE",),
-                    # "depth_map": ("MASK",),
-                    "intensity": ("INT", {"default": 50, "min": 1, "max": 100, "step": 1}),
-                    # "fog_front": ("FLOAT", {"default": 0.00, "min": 0.0, "max": 1.0, "step": 0.01}),
-                    # "fog_back": ("FLOAT", {"default": 1.00, "min": 0.0, "max": 1.0, "step": 0.01}),
-                    "line_thickness": ("INT", {"default": 5, "min": 1, "max": 100, "step": 1, "display": "color"}),
-                    "line_distance": ("INT", {"default": 4, "min": 1, "max": 100, "step": 1, "display": "color"}),
+                    "intensity": ("INT", {"default": 15, "min": 0, "max": 100, "step": 1}),
+                    "line_thickness": ("INT", {"default": 15, "min": 0, "max": 100, "step": 1, "display": "color"}),
                     "direction": (["horizontal", "vertical"],)
                 }
                 }
@@ -1934,8 +1951,16 @@ class YANCScanlines:
     RETURN_NAMES = ("image", "image",)
     FUNCTION = "do_it"
 
-    def do_it(self, image, intensity, line_thickness, line_distance, direction):
+    def do_it(self, image, intensity, line_thickness, direction):
         B, height, width, C = image.shape
+
+        if intensity == 0:
+            intensity = 1
+        elif intensity == 100:
+            intensity = 99
+
+        if line_thickness == 0:
+            line_thickness = 1
 
         intensity = 100 - intensity
 
@@ -1944,17 +1969,18 @@ class YANCScanlines:
         if direction == 'horizontal':
             for i in range(0, height, line_thickness):
                 for j in range(line_thickness):
-                    fade = torch.exp(-torch.abs(torch.tensor(j - (line_thickness / 2), dtype=torch.float32)) / (intensity / 4))  # Exponentieller Fade
+                    fade = torch.exp(-torch.abs(torch.tensor(j - (line_thickness / 2),
+                                     dtype=torch.float32)) / (intensity / 8))
                     if i + j < height:
                         mask[i + j, :] = fade
         elif direction == 'vertical':
             for j in range(0, width, line_thickness):
                 for i in range(line_thickness):
-                    fade = torch.exp(-torch.abs(torch.tensor(i - (line_thickness / 2), dtype=torch.float32)) / (intensity / 4))  # Exponentieller Fade
+                    fade = torch.exp(-torch.abs(torch.tensor(i - (line_thickness / 2),
+                                     dtype=torch.float32)) / (intensity / 8))
                     if j + i < width:
                         mask[:, j + i] = fade
 
-        # Maske auf die richtigen Dimensionen erweitern (B, H, W, C)
         mask = mask.unsqueeze(0).unsqueeze(3).expand(B, height, width, C)
 
         output_image = image * mask
