@@ -1940,15 +1940,15 @@ class YANCScanlines:
                 {
                     "image": ("IMAGE",),
                     "intensity": ("INT", {"default": 15, "min": 0, "max": 100, "step": 1}),
-                    "line_thickness": ("INT", {"default": 15, "min": 0, "max": 100, "step": 1, "display": "color"}),
+                    "line_thickness": ("INT", {"default": 15, "min": 0, "max": 100, "step": 1}),
                     "direction": (["horizontal", "vertical"],)
                 }
                 }
 
     CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
 
-    RETURN_TYPES = ("IMAGE", "IMAGE",)
-    RETURN_NAMES = ("image", "image",)
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
     FUNCTION = "do_it"
 
     def do_it(self, image, intensity, line_thickness, direction):
@@ -1985,7 +1985,55 @@ class YANCScanlines:
 
         output_image = image * mask
 
-        return (output_image, mask)
+        return (output_image,)
+    
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCRGBShift:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    # "intensity": ("INT", {"default": 15, "min": 0, "max": 100, "step": 1}),
+                    "channel": (["red", "green", "blue"],),
+                    "shift_x": ("INT", {"default": 0, "min": -20, "max": 20, "step": 1}),
+                    "shift_y": ("INT", {"default": 0, "min": -20, "max": 20, "step": 1}),
+                    # "direction": (["horizontal", "vertical"],)
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, channel, shift_x, shift_y):
+        B, height, width, C = image.shape
+
+        if channel == "red":
+            c = 0
+        elif channel == "green":
+            c = 1
+        elif channel == "blue":
+            c = 2
+
+        # Auswahl des Kanals
+        selected_channel = image[:, :, :, c]
+
+        # Verschiebung des ausgewählten Kanals
+        shifted_channel = torch.roll(selected_channel, shifts=(shift_y, shift_x), dims=(1, 2))
+
+        # Kopie des Originalbildes
+        shifted_image = image.clone()
+
+        # Ersetzen des verschobenen Kanals im geklonten Bild
+        shifted_image[:, :, :, c] = shifted_channel
+
+        return (shifted_image,)
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
@@ -2012,6 +2060,7 @@ NODE_CLASS_MAPPINGS = {
     "> Vignette": YANCVignette,
     "> Fog": YANCFog,
     "> Scanlines": YANCScanlines,
+    "> RGB Shift": YANCRGBShift,
 
     # Text
     "> Text": YANCText,
@@ -2063,6 +2112,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Vignette": cat_smirk + "> Vignette",
     "> Fog": cat_smirk + "> Fog",
     "> Scanlines": cat_smirk + "> Scanlines",
+    "> RGB Shift": cat_smirk + "> RGB Shift",
 
     # Text
     "> Text": cat_smirk + "> Text",
