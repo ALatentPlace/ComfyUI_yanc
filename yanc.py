@@ -1901,30 +1901,25 @@ class YANCFog:
             depth_map = NNF.interpolate(depth_map.unsqueeze(1), size=(
                 H, W), mode='bilinear', align_corners=False).squeeze(1)
 
-        # Normalize depth map to range between 0 and 1
         depth_min = depth_map.min(dim=1, keepdim=True)[
             0].min(dim=1, keepdim=True)[0]
         depth_max = depth_map.max(dim=1, keepdim=True)[
             0].max(dim=1, keepdim=True)[0]
-        depth_normalized = (depth_map - depth_min) / (depth_max - depth_min)
-        # Shape: (B, H, W, C)
-        depth_normalized = depth_normalized.unsqueeze(-1).expand(-1, -1, -1, C)
 
+        depth_normalized = (depth_map - depth_min) / (depth_max - depth_min)
+        depth_normalized = depth_normalized.unsqueeze(-1).expand(-1, -1, -1, C)
         depth_normalized = 1 - depth_normalized
         depth_normalized = depth_normalized.clamp(fog_front, fog_back)
 
-        # Compute the fog factor based on depth
         fog_factor = torch.clamp(depth_normalized * fog_intensity, 0, 1)
 
         r = (fog_color >> 16) & 0xFF
         g = (fog_color >> 8) & 0xFF
         b = fog_color & 0xFF
-        fog_color = torch.tensor([r, g, b], dtype=torch.float32) / 255.0
 
-        # Expand fog_color to match the image shape
+        fog_color = torch.tensor([r, g, b], dtype=torch.float32) / 255.0
         fog_color = fog_color.view(1, 1, 1, C).expand(B, H, W, C)
 
-        # Apply fog effect
         foggy_image = image * (1 - fog_factor) + fog_color * fog_factor
 
         return (foggy_image,)
@@ -1986,7 +1981,7 @@ class YANCScanlines:
         output_image = image * mask
 
         return (output_image,)
-    
+
 
 # ------------------------------------------------------------------------------------------------------------------ #
 
@@ -1997,11 +1992,9 @@ class YANCRGBShift:
         return {"required":
                 {
                     "image": ("IMAGE",),
-                    # "intensity": ("INT", {"default": 15, "min": 0, "max": 100, "step": 1}),
                     "channel": (["red", "green", "blue"],),
                     "shift_x": ("INT", {"default": 0, "min": -20, "max": 20, "step": 1}),
                     "shift_y": ("INT", {"default": 0, "min": -20, "max": 20, "step": 1}),
-                    # "direction": (["horizontal", "vertical"],)
                 }
                 }
 
@@ -2012,7 +2005,6 @@ class YANCRGBShift:
     FUNCTION = "do_it"
 
     def do_it(self, image, channel, shift_x, shift_y):
-        B, height, width, C = image.shape
 
         if channel == "red":
             c = 0
@@ -2021,19 +2013,125 @@ class YANCRGBShift:
         elif channel == "blue":
             c = 2
 
-        # Auswahl des Kanals
         selected_channel = image[:, :, :, c]
 
-        # Verschiebung des ausgewählten Kanals
-        shifted_channel = torch.roll(selected_channel, shifts=(shift_y, shift_x), dims=(1, 2))
+        shifted_channel = torch.roll(
+            selected_channel, shifts=(shift_y, shift_x), dims=(1, 2))
 
-        # Kopie des Originalbildes
         shifted_image = image.clone()
 
-        # Ersetzen des verschobenen Kanals im geklonten Bild
         shifted_image[:, :, :, c] = shifted_channel
 
         return (shifted_image,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCFilmGrain:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "intensity": ("FLOAT", {"default": 0.01, "min": 0.0, "max": 0.1, "step": 0.01}),
+                    "std_dev": ("INT", {"default": 1, "min": 1, "max": 5, "step": 1}),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, intensity, std_dev,):
+        B, H, W, _ = image.size()
+        image_tensor = image.clone()
+
+        noise = torch.randn((B, 1, H, W))
+        noise = noise.repeat(1, 3, 1, 1)
+
+        resize_cropper = T.RandomResizedCrop(
+            size=(H // std_dev, W // std_dev))
+        resized_crop = resize_cropper(noise)
+
+        resized_img = T.Resize(size=(H, W))(resized_crop)
+
+        noisy_image = slerp(intensity, image_tensor, resized_img)
+        noisy_image = torch.clamp(noisy_image, 0, 1)
+
+        return (noisy_image,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCHue:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "hue_adjustment": ("FLOAT", {"default": 0.0, "min": -0.5, "max": 0.5, "step": 0.001}),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, hue_adjustment):
+
+        adjusted_image = tensor2pil(image)
+        adjusted_image = T.functional.adjust_hue(
+            adjusted_image, hue_adjustment)
+        adjusted_image = pil2tensor(adjusted_image)
+
+        return (adjusted_image,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class LayerWeights:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "layer_0": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_1": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_2": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_3": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_4": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_5": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_6": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_7": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_8": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_9": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_10": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_11": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                }
+                }
+
+    CATEGORY = yanc_root_name
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("layer_weights", "help")
+    FUNCTION = "do_it"
+
+    def do_it(self, layer_0, layer_1, layer_2, layer_3, layer_4, layer_5, layer_6, layer_7, layer_8, layer_9, layer_10, layer_11,):
+        result = ""
+
+        result = f"0:{layer_0:g}, 1:{layer_1:g}, 2:{layer_2:g}, 3:{layer_3:g}, 4:{layer_4:g}, 5:{layer_5:g}, 6:{layer_6:g}, 7:{layer_7:g}, 8:{layer_8:g}, 9:{layer_9:g}, 10:{layer_10:g}, 11:{layer_11:g}"
+
+        help = """layer_3: Composition
+layer_6: Style
+"""
+
+        return (result, help)
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
@@ -2061,6 +2159,8 @@ NODE_CLASS_MAPPINGS = {
     "> Fog": YANCFog,
     "> Scanlines": YANCScanlines,
     "> RGB Shift": YANCRGBShift,
+    "> Film Grain": YANCFilmGrain,
+    "> HUE": YANCHue,
 
     # Text
     "> Text": YANCText,
@@ -2086,6 +2186,7 @@ NODE_CLASS_MAPPINGS = {
     # Utils
     "> Get Mean Color": YANCGetMeanColor,
     "> RGB To Int": YANCRGBToInt,
+    "Layer Weights": LayerWeights,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
@@ -2113,6 +2214,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Fog": cat_smirk + "> Fog",
     "> Scanlines": cat_smirk + "> Scanlines",
     "> RGB Shift": cat_smirk + "> RGB Shift",
+    "> Film Grain": cat_smirk + "> Film Grain",
+    "> HUE": cat_smirk + "> HUE",
 
     # Text
     "> Text": cat_smirk + "> Text",
@@ -2137,5 +2240,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     # Utils
     "> Get Mean Color": cat_smirk + "> Get Mean Color",
-    "> RGB To Int": cat_smirk + "> RGB To Int"
+    "> RGB To Int": cat_smirk + "> RGB To Int",
+    "> Layer Weights": "Layer Weights"
 }
