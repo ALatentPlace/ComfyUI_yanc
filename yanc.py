@@ -1950,37 +1950,35 @@ class YANCScanlines:
         B, height, width, C = image.shape
 
         if intensity == 0:
-            intensity = 1
-        elif intensity == 100:
-            intensity = 99
+            return image
+        elif intensity > 100:
+            intensity = 100
 
         if line_thickness == 0:
             line_thickness = 1
 
-        intensity = 100 - intensity
-
-        mask = torch.zeros((height, width), dtype=torch.float32)
+        mask = torch.ones((height, width), dtype=torch.float32)
 
         if direction == 'horizontal':
-            for i in range(0, height, line_thickness):
-                for j in range(line_thickness):
-                    fade = torch.exp(-torch.abs(torch.tensor(j - (line_thickness / 2),
-                                     dtype=torch.float32)) / (intensity / 8))
-                    if i + j < height:
-                        mask[i + j, :] = fade
+            for i in range(0, height, line_thickness * 2):
+                mask[i:i+line_thickness, :] = 0
         elif direction == 'vertical':
-            for j in range(0, width, line_thickness):
-                for i in range(line_thickness):
-                    fade = torch.exp(-torch.abs(torch.tensor(i - (line_thickness / 2),
-                                     dtype=torch.float32)) / (intensity / 8))
-                    if j + i < width:
-                        mask[:, j + i] = fade
+            for j in range(0, width, line_thickness * 2):
+                mask[:, j:j+line_thickness] = 0
 
+        # Apply Gaussian blur to the mask
+        mask = mask.unsqueeze(0).unsqueeze(0)  # Add batch and channel dimensions
+        blur_transform = T.GaussianBlur(kernel_size=5, sigma=(0.1, 2.0))
+        mask = blur_transform(mask)
+        mask = mask.squeeze(0).squeeze(0)  # Remove batch and channel dimensions
+
+        mask = mask * (intensity / 100)
         mask = mask.unsqueeze(0).unsqueeze(3).expand(B, height, width, C)
 
-        output_image = image * mask
+        output_image = image * mask + image * (1 - mask) * (1 - (intensity / 100))
 
         return (output_image,)
+
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
