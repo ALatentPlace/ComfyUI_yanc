@@ -26,6 +26,7 @@ yanc_sub_basics = "/😼 Basics"
 yanc_sub_nik = "/😼 Noise Injection Sampler"
 yanc_sub_masking = "/😼 Masking"
 yanc_sub_utils = "/😼 Utils"
+yanc_sub_experimental = "/😼 Experimental"
 
 # ------------------------------------------------------------------------------------------------------------------ #
 # Functions                                                                                                          #
@@ -1463,6 +1464,47 @@ class YANCGetMeanColor:
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCLayerWeights:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "layer_0": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_1": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_2": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_3": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_4": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_5": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_6": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_7": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_8": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_9": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_10": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                    "layer_11": ("FLOAT", {"default": 0, "min": 0, "max": 10.0, "step": 0.1}),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_experimental
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("layer_weights", "help")
+    FUNCTION = "do_it"
+
+    def do_it(self, layer_0, layer_1, layer_2, layer_3, layer_4, layer_5, layer_6, layer_7, layer_8, layer_9, layer_10, layer_11,):
+        result = ""
+
+        result = f"0:{layer_0:g}, 1:{layer_1:g}, 2:{layer_2:g}, 3:{layer_3:g}, 4:{layer_4:g}, 5:{layer_5:g}, 6:{layer_6:g}, 7:{layer_7:g}, 8:{layer_8:g}, 9:{layer_9:g}, 10:{layer_10:g}, 11:{layer_11:g}"
+
+        help = """layer_3: Composition
+layer_6: Style
+"""
+
+        return (result, help)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -1497,6 +1539,9 @@ NODE_CLASS_MAPPINGS = {
     # Utils
     "> Get Mean Color": YANCGetMeanColor,
     "> RGB Color": YANCRGBColor,
+
+    # Experimental
+    "> Layer Weights (for IPAMS)": YANCLayerWeights,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
@@ -1533,5 +1578,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     # Utils
     "> Get Mean Color": "😼> Get Mean Color",
-    "> RGB Color": "😼> RGB Color"
+    "> RGB Color": "😼> RGB Color",
+
+    # Experimental
+    "> Layer Weights (for IPAMS)": "😼> Layer Weights (for IPAMS)",
 }
