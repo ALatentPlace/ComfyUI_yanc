@@ -1966,11 +1966,10 @@ class YANCScanlines:
             for j in range(0, width, line_thickness * 2):
                 mask[:, j:j+line_thickness] = 0
 
-        # Apply Gaussian blur to the mask
-        mask = mask.unsqueeze(0).unsqueeze(0)  # Add batch and channel dimensions
+        mask = mask.unsqueeze(0).unsqueeze(0)
         blur_transform = T.GaussianBlur(kernel_size=5, sigma=(0.1, 2.0))
         mask = blur_transform(mask)
-        mask = mask.squeeze(0).squeeze(0)  # Remove batch and channel dimensions
+        mask = mask.squeeze(0).squeeze(0)
 
         mask = mask * (intensity / 100)
         mask = mask.unsqueeze(0).unsqueeze(3).expand(B, height, width, C)
