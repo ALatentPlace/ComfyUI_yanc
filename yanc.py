@@ -2133,6 +2133,58 @@ class YANCHue:
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCLensDistortion:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "k1": ("FLOAT", {"default": 0.1, "min": -0.5, "max": 0.5, "step": 0.001}),
+                    "k2": ("FLOAT", {"default": 0.001, "min": -0.5, "max": 0.5, "step": 0.001}),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, k1, k2):
+        img = image.unsqueeze(0).permute(1, 2, 0)
+
+        b, h, w, c = img.shape
+        x = torch.linspace(-1, 1, w)
+        y = torch.linspace(-1, 1, h)
+        xx, yy = torch.meshgrid(x, y)
+        xx = xx.t().contiguous()
+        yy = yy.t().contiguous()
+        r = torch.sqrt(xx**2 + yy**2)
+        theta = torch.atan2(yy, xx)
+
+        # Radiale Verzerrung
+        r_distorted = r * (1 + k1 * r**2 + k2 * r**4)
+        xx_distorted = r_distorted * torch.cos(theta)
+        yy_distorted = r_distorted * torch.sin(theta)
+
+        # Normalisieren
+        xx_distorted = (xx_distorted + 1) * w / 2
+        yy_distorted = (yy_distorted + 1) * h / 2
+
+        # Grid erstellen
+        grid = torch.stack([xx_distorted, yy_distorted], dim=2).unsqueeze(0)
+
+        # Grid Sampling, permute für PyTorch und zurück
+        img = img.permute(0, 3, 1, 2)  # (1, H, W, C) -> (1, C, H, W)
+        distorted_img = torch.nn.functional.grid_sample(img, grid, align_corners=True)
+        distorted_img = distorted_img.permute(0, 2, 3, 1)  # (1, C, H, W) -> (1, H, W, C)
+
+        return (distorted_img,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -2159,6 +2211,7 @@ NODE_CLASS_MAPPINGS = {
     "> RGB Shift": YANCRGBShift,
     "> Film Grain": YANCFilmGrain,
     "> HUE": YANCHue,
+    "> Lens Distortion": YANCLensDistortion,
 
     # Text
     "> Text": YANCText,
@@ -2214,6 +2267,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> RGB Shift": cat_smirk + "> RGB Shift",
     "> Film Grain": cat_smirk + "> Film Grain",
     "> HUE": cat_smirk + "> HUE",
+    "> Lens Distortion": cat_smirk + "> Lens Distortion",
 
     # Text
     "> Text": cat_smirk + "> Text",
