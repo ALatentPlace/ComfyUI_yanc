@@ -2141,8 +2141,9 @@ class YANCLensDistortion:
         return {"required":
                 {
                     "image": ("IMAGE",),
-                    "k1": ("FLOAT", {"default": 0.1, "min": -0.5, "max": 0.5, "step": 0.001}),
-                    "k2": ("FLOAT", {"default": 0.001, "min": -0.5, "max": 0.5, "step": 0.001}),
+                    "distortion": ("FLOAT", {"default": 0.0, "min": -0.25, "max": 2.0, "step": 0.01}),
+                    # "k2": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 2.0, "step": 0.01}),
+                    "zoom": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 10.0, "step": 0.01}),
                 }
                 }
 
@@ -2152,34 +2153,34 @@ class YANCLensDistortion:
     RETURN_NAMES = ("image",)
     FUNCTION = "do_it"
 
-    def do_it(self, image, k1, k2):
-        img = image.unsqueeze(0).permute(1, 2, 0)
+    def do_it(self, image, distortion, zoom, k2=0.0):
 
-        b, h, w, c = img.shape
-        x = torch.linspace(-1, 1, w)
-        y = torch.linspace(-1, 1, h)
-        xx, yy = torch.meshgrid(x, y)
-        xx = xx.t().contiguous()
-        yy = yy.t().contiguous()
+        b, h, w, c = image.shape
+
+        img = image.permute(0, 3, 1, 2)
+
+        x = torch.linspace(-1 / zoom, 1 / zoom, w)
+        y = torch.linspace(-1 / zoom, 1 / zoom, h)
+        yy, xx = torch.meshgrid(y, x)
+
         r = torch.sqrt(xx**2 + yy**2)
         theta = torch.atan2(yy, xx)
 
-        # Radiale Verzerrung
-        r_distorted = r * (1 + k1 * r**2 + k2 * r**4)
+        r_distorted = r * (1 + distortion * r**2 + k2 * r**4)
         xx_distorted = r_distorted * torch.cos(theta)
         yy_distorted = r_distorted * torch.sin(theta)
 
-        # Normalisieren
-        xx_distorted = (xx_distorted + 1) * w / 2
-        yy_distorted = (yy_distorted + 1) * h / 2
+        xx_distorted = (xx_distorted + 1) * (w - 1) / 2
+        yy_distorted = (yy_distorted + 1) * (h - 1) / 2
 
-        # Grid erstellen
-        grid = torch.stack([xx_distorted, yy_distorted], dim=2).unsqueeze(0)
+        grid = torch.stack([xx_distorted, yy_distorted], dim=-1).unsqueeze(0)
+        grid = grid.expand(b, -1, -1, -1)
 
-        # Grid Sampling, permute für PyTorch und zurück
-        img = img.permute(0, 3, 1, 2)  # (1, H, W, C) -> (1, C, H, W)
-        distorted_img = torch.nn.functional.grid_sample(img, grid, align_corners=True)
-        distorted_img = distorted_img.permute(0, 2, 3, 1)  # (1, C, H, W) -> (1, H, W, C)
+        grid[..., 0] = 2.0 * grid[..., 0] / (w - 1) - 1.0
+        grid[..., 1] = 2.0 * grid[..., 1] / (h - 1) - 1.0
+
+        distorted_img = NNF.grid_sample(img, grid, align_corners=True)
+        distorted_img = distorted_img.permute(0, 2, 3, 1)
 
         return (distorted_img,)
 
