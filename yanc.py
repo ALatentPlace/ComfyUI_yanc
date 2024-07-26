@@ -457,8 +457,17 @@ class YANCLoadImageAndFilename:
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(
-            os.path.join(input_dir, f))]
+        # files = [f for f in os.listdir(input_dir) if os.path.isfile(
+        #     os.path.join(input_dir, f))]
+
+        files = []
+        for root, dirs, filenames in os.walk(input_dir):
+            for filename in filenames:
+                full_path = os.path.join(root, filename)
+                relative_path = os.path.relpath(full_path, input_dir)
+                relative_path = relative_path.replace("\\", "/")
+                files.append(relative_path)
+
         return {"required":
                 {"image": (sorted(files), {"image_upload": True}),
                  "strip_extension": ("BOOLEAN", {"default": True})}
