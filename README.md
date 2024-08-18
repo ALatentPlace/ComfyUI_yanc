@@ -4,6 +4,8 @@ This is another node collection for ComfyUI. It includes some basic nodes that I
 
 ## Latest Updates
 
+**2024/08/18**: Added a small post processing suite.
+
 **2024/06/10**: Added RGBColor, GetMeanColor and NormalMapLighting.
 
 **2024/05/27**: Added LightSourceMask and mask support for the rescale image node.
@@ -111,6 +113,44 @@ You can also find me on [Discord][discordlink].
 **Get Mean Color**: Gets the mean color of the provided image. By applying a mask you can chose the area of which you want to get the mean color value.
 
 **RGB Color**: A helper node to create RGB colors. Outputs an INT value for the color as well as for each channel. Also export the color in HEX format.
+
+### Post Processing
+
+**Brightness**: Set the brightness of an image.
+
+**Contrast**: Set the contrast of an image.
+
+**Saturation**: Set the saturation of an image.
+
+**Sharpen**: A simple image sharpening node.
+
+**Divide Channels**: Divide the RGB channels of an image. Returns every channel as an image. Good if you want to manipulaute only one channel of the image.
+
+**Combine Channels**: Combines the RGB channels back to one image.
+
+**Edge Enhance**: A simple edge enhacing node.
+
+**Bloom**: A bloom effect.
+
+**Blur**: A simple image blur node.
+
+**Vignette**: Creates either a black or a white vignette on the image.
+
+**Fog**: Creates a foggy effect in the effect. You can use a depth mask to control the fog in the back and the front.
+
+**Scanlines**: A simple node to create a scanline effect.
+
+**RGB Shift**: Shifts the selected RGB channel by given pixels. Can be used, for example, to create the channel shift effect of old VHS movies.
+
+**Film Grain**: A simple node which creates a film grain effect.
+
+**HUE**: A simple HUE shifting node.
+
+**Lens Distorion**: To create a fisheye effect. Subject to change.
+
+### Experimental
+
+**Layer Weights (for IPAMS)**: Made for the IPAdapter Mad Scientist. Input form for the layer weights.
 
 ## Demo Workflows
 

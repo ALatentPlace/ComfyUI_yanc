@@ -2,8 +2,7 @@ import torch
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
 import torch.nn.functional as NNF
-import torch.nn.functional as NNF
-from PIL import Image, ImageSequence, ImageOps
+from PIL import Image, ImageSequence, ImageOps, ImageFilter
 from PIL.PngImagePlugin import PngInfo
 import random
 import folder_paths
@@ -18,15 +17,19 @@ import nodes as nodes
 import json
 import math
 import datetime
+import colorsys
+
+cat_smirk = "😼"
 
 yanc_root_name = "YANC"
-yanc_sub_image = "/😼 Image"
-yanc_sub_text = "/😼 Text"
-yanc_sub_basics = "/😼 Basics"
-yanc_sub_nik = "/😼 Noise Injection Sampler"
-yanc_sub_masking = "/😼 Masking"
-yanc_sub_utils = "/😼 Utils"
-yanc_sub_experimental = "/😼 Experimental"
+yanc_sub_image = "/" + cat_smirk + " Image"
+yanc_sub_text = "/" + cat_smirk + " Text"
+yanc_sub_basics = "/" + cat_smirk + " Basics"
+yanc_sub_nik = "/" + cat_smirk + " Noise Injection Sampler"
+yanc_sub_masking = "/" + cat_smirk + " Masking"
+yanc_sub_utils = "/" + cat_smirk + " Utils"
+yanc_sub_post_processing = "/" + cat_smirk + " Post Processing"
+yanc_sub_experimental = "/" + cat_smirk + " Experimental"
 
 # ------------------------------------------------------------------------------------------------------------------ #
 # Functions                                                                                                          #
@@ -36,6 +39,24 @@ yanc_sub_experimental = "/😼 Experimental"
 def permute_to_image(image):
     image = T.ToTensor()(image).unsqueeze(0)
     return image.permute([0, 2, 3, 1])[:, :, :, :3]
+
+
+def permute_tt(image):
+    return image.permute(0, 3, 1, 2)
+
+
+def permute_ft(image):
+    return image.permute(0, 2, 3, 1)
+
+
+# From WAS Node Suite: https://github.com/WASasquatch/was-node-suite-comfyui
+def tensor2pil(image):
+    return Image.fromarray(np.clip(255. * image.cpu().numpy().squeeze(), 0, 255).astype(np.uint8))
+
+
+# From WAS Node Suite: https://github.com/WASasquatch/was-node-suite-comfyui
+def pil2tensor(image):
+    return torch.from_numpy(np.array(image).astype(np.float32) / 255.0).unsqueeze(0)
 
 
 def to_binary_mask(image):
@@ -183,6 +204,27 @@ def lighten_blend(base, blend):
 
 def darken_blend(base, blend):
     return torch.min(base, blend)
+
+
+# From https://github.com/BlenderNeko/ComfyUI_Noise/
+def slerp(val, low, high):
+    dims = low.shape
+
+    low = low.reshape(dims[0], -1)
+    high = high.reshape(dims[0], -1)
+
+    low_norm = low/torch.norm(low, dim=1, keepdim=True)
+    high_norm = high/torch.norm(high, dim=1, keepdim=True)
+
+    low_norm[low_norm != low_norm] = 0.0
+    high_norm[high_norm != high_norm] = 0.0
+
+    omega = torch.acos((low_norm*high_norm).sum(1))
+    so = torch.sin(omega)
+    res = (torch.sin((1.0-val)*omega)/so).unsqueeze(1) * \
+        low + (torch.sin(val*omega)/so).unsqueeze(1) * high
+
+    return res.reshape(dims)
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
@@ -624,10 +666,11 @@ class YANCSaveImage:
                             metadata.add_text("prompt", json.dumps(prompt))
                         if extra_pnginfo is not None:
                             for x in extra_pnginfo:
-                                metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+                                metadata.add_text(
+                                    x, json.dumps(extra_pnginfo[x]))
 
                     img.save(save_path, pnginfo=metadata,
-                            compress_level=self.compress_level)
+                             compress_level=self.compress_level)
                 elif extension == "jpg":
                     if not args.disable_metadata and include_metadata:
                         metadata = {}
@@ -1339,7 +1382,7 @@ class YANCNormalMapLighting:
 # ------------------------------------------------------------------------------------------------------------------ #
 
 
-class YANCRGBColor:
+class RGBColor:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
@@ -1347,48 +1390,18 @@ class YANCRGBColor:
                     "red": ("INT", {"default": 0, "min": 0, "max": 255, "step": 1}),
                     "green": ("INT", {"default": 0, "min": 0, "max": 255, "step": 1}),
                     "blue": ("INT", {"default": 0, "min": 0, "max": 255, "step": 1}),
-                    "plus_minus": ("INT", {"default": 0, "min": -255, "max": 255, "step": 1}),
                 },
                 }
 
     CATEGORY = yanc_root_name + yanc_sub_utils
 
-    RETURN_TYPES = ("INT", "INT", "INT", "INT", "STRING",)
-    RETURN_NAMES = ("int", "red", "green", "blue", "hex",)
+    RETURN_TYPES = ("INT",)
+    RETURN_NAMES = ("int",)
     FUNCTION = "do_it"
 
-    def do_it(self, red, green, blue, plus_minus):
-        total = red + green + blue
-
-        r_ratio = red / total if total != 0 else 0
-        g_ratio = green / total if total != 0 else 0
-        b_ratio = blue / total if total != 0 else 0
-
-        if plus_minus > 0:
-            max_plus_minus = min((255 - red) / r_ratio if r_ratio > 0 else float('inf'),
-                                (255 - green) / g_ratio if g_ratio > 0 else float('inf'),
-                                (255 - blue) / b_ratio if b_ratio > 0 else float('inf'))
-            effective_plus_minus = min(plus_minus, max_plus_minus)
-        else:
-            max_plus_minus = min(red / r_ratio if r_ratio > 0 else float('inf'),
-                                green / g_ratio if g_ratio > 0 else float('inf'),
-                                blue / b_ratio if b_ratio > 0 else float('inf'))
-            effective_plus_minus = max(plus_minus, -max_plus_minus)
-
-        new_r = red + effective_plus_minus * r_ratio
-        new_g = green + effective_plus_minus * g_ratio
-        new_b = blue + effective_plus_minus * b_ratio
-
-        new_r = max(0, min(255, round(new_r)))
-        new_g = max(0, min(255, round(new_g)))
-        new_b = max(0, min(255, round(new_b)))
-
-        color = (new_r << 16) | (new_g << 8) | new_b
-
-        hex_color = "#{:02x}{:02x}{:02x}".format(
-            int(new_r), int(new_g), int(new_b)).upper()
-
-        return (color, new_r, new_g, new_b, hex_color)
+    def do_it(self, red, green, blue):
+        color = (red << 16) | (green << 8) | blue
+        return (color,)
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
@@ -1514,6 +1527,696 @@ layer_6: Style
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCBrightness:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "brightness": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
+                },
+                "optional":
+                {
+                    "mask_opt": ("MASK",),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, brightness, mask_opt=None):
+
+        if mask_opt is not None:
+            mask = mask_opt.clone()
+            mask = permute_tt(mask.unsqueeze(-1))
+        else:
+            mask = torch.ones_like(image)
+            mask = permute_tt(mask)
+
+        img = image.clone()
+        img = permute_tt(img)
+        img = F.adjust_brightness(img * mask, brightness)
+        img = img + permute_tt(image) * F.invert(mask)
+        img = permute_ft(img)
+
+        return (img,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCContrast:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "contrast": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
+                },
+                "optional":
+                {
+                    "mask_opt": ("MASK",),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, contrast, mask_opt=None):
+
+        if mask_opt is not None:
+            mask = mask_opt.clone()
+            mask = permute_tt(mask.unsqueeze(-1))
+        else:
+            mask = torch.ones_like(image)
+            mask = permute_tt(mask)
+
+        img = image.clone()
+        img = permute_tt(img)
+        img = F.adjust_contrast(img * mask, contrast)
+        img = img + permute_tt(image) * F.invert(mask)
+        img = permute_ft(img)
+
+        return (img,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCSaturation:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "saturation": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
+                },
+                "optional":
+                {
+                    "mask_opt": ("MASK",),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, saturation, mask_opt=None):
+
+        if mask_opt is not None:
+            mask = mask_opt.clone()
+            mask = permute_tt(mask.unsqueeze(-1))
+        else:
+            mask = torch.ones_like(image)
+            mask = permute_tt(mask)
+
+        img = image.clone()
+        img = permute_tt(img)
+        img = F.adjust_saturation(img * mask, saturation)
+        img = img + permute_tt(image) * F.invert(mask)
+        img = permute_ft(img)
+
+        return (img,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCSharpen:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "sharpen": ("FLOAT", {"default": 1.0, "min": 1.0, "max": 5.0, "step": 0.01}),
+                },
+                "optional":
+                {
+                    "mask_opt": ("MASK",),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, sharpen, mask_opt=None):
+
+        if mask_opt is not None:
+            mask = mask_opt.clone()
+            mask = permute_tt(mask.unsqueeze(-1))
+        else:
+            mask = torch.ones_like(image)
+            mask = permute_tt(mask)
+
+        img = image.clone()
+        img = permute_tt(img)
+        img = F.adjust_sharpness(img * mask, sharpen)
+        img = img + permute_tt(image) * F.invert(mask)
+        img = permute_ft(img)
+
+        return (img,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCDivideChannels:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                },
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE", "IMAGE",)
+    RETURN_NAMES = ("image", "red", "green", "blue")
+    FUNCTION = "do_it"
+
+    def do_it(self, image,):
+        img = image.clone()
+
+        red_channel = image.clone()
+        green_channel = image.clone()
+        blue_channel = image.clone()
+
+        red_channel[:, :, :, 1] = 0
+        red_channel[:, :, :, 2] = 0
+        green_channel[:, :, :, 0] = 0
+        green_channel[:, :, :, 2] = 0
+        blue_channel[:, :, :, 0] = 0
+        blue_channel[:, :, :, 1] = 0
+
+        return (img, red_channel, green_channel, blue_channel,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCCombineChannels:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "red": ("IMAGE",),
+                    "green": ("IMAGE",),
+                    "blue": ("IMAGE",),
+                },
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, red, green, blue):
+        img = red + green + blue
+
+        return (img,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCEdgeEnhance:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "edge_enhance": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                },
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, edge_enhance):
+
+        img = image.clone()
+        img_orig = image.clone()
+        processed_images = []
+
+        for i in range(img.shape[0]):
+            tensor = tensor2pil(img[i])
+            tensor = tensor.filter(ImageFilter.EDGE_ENHANCE_MORE)
+            tensor = pil2tensor(tensor)
+
+            blended_image = edge_enhance * tensor + \
+                (1 - edge_enhance) * img_orig[i]
+            blended_image = torch.clamp(blended_image, 0, 1)
+
+            processed_images.append(blended_image)
+
+        result = torch.cat(processed_images, dim=0)
+
+        return (result,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCBloom:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "intensity": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                },
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, intensity):
+
+        intensity = intensity * 1.2
+
+        blur_radius_per_pixel = 0.1 * intensity
+        blur_radius = blur_radius_per_pixel * \
+            min(image.shape[1], image.shape[2])
+
+        threshold = 0.5
+        threshold_offset_factor = 0.1
+
+        if intensity > 0.24:
+            threshold -= threshold_offset_factor
+        elif intensity > 0.49:
+            threshold -= threshold_offset_factor
+        elif intensity > 0.74:
+            threshold -= threshold_offset_factor
+
+        bright_areas = (image >= image.max() * threshold).float() * \
+            (image <= image.max()).float()
+
+        blurred_img = tensor2pil(bright_areas)
+        blurred_img = blurred_img.filter(
+            ImageFilter.GaussianBlur(radius=blur_radius))
+        bright_areas = pil2tensor(blurred_img)
+
+        bloom_image = image + intensity * bright_areas
+        bloom_image = torch.clamp(bloom_image, 0, 1)
+
+        return (bloom_image,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCBlur:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "intensity": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                },
+                "optional":
+                {
+                    "mask_opt": ("MASK",),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, intensity, mask_opt=None):
+
+        img = image.clone()
+
+        blur_radius_per_pixel = 0.02 * intensity
+        blur_radius = blur_radius_per_pixel * \
+            min(image.shape[1], image.shape[2])
+
+        blurred_img = tensor2pil(img)
+        blurred_img = blurred_img.filter(
+            ImageFilter.GaussianBlur(radius=blur_radius))
+        blurred_img = pil2tensor(blurred_img)
+
+        print_cyan("IMG: " + str(img.shape))
+        print_green("BLURRED: " + str(blurred_img.shape))
+
+        if mask_opt is not None:
+            mask_opt = mask_opt.unsqueeze(3)
+            mask_opt = mask_opt.float()
+            mask_opt = mask_opt / mask_opt.max()
+
+            img = (img * mask_opt) + (blurred_img * (1 - mask_opt))
+        else:
+            img = blurred_img
+
+        img = torch.clamp(img, 0, 1)
+
+        return (img,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCVignette:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "intensity": ("FLOAT", {"default": 0.25, "min": -1.0, "max": 1.0, "step": 0.01}),
+                    "opacity": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    "color": (["black", "white"],),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, intensity, opacity, color):
+        img = image.clone()
+        intensity = 1 - intensity
+
+        _, H, W, C = img.shape
+
+        Y, X = torch.meshgrid(torch.linspace(-1, 1, H),
+                              torch.linspace(-1, 1, W))
+        D = torch.sqrt(X**2 + Y**2)
+
+        sigma = intensity
+        vignette = torch.exp(-D**2 / (2 * sigma**2))
+
+        vignette = vignette.unsqueeze(-1).expand(1, H, W, C)
+
+        if color == 'white':
+            white_img = torch.ones_like(img)
+            vignetted_image = img + \
+                ((1 - vignette) * (white_img - img) * opacity)
+        else:
+            black_image = torch.zeros_like(img)
+            vignetted_image = img + \
+                ((1 - vignette) * (black_image - img) * opacity)
+
+        return (vignetted_image,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCFog:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "depth_map": ("MASK",),
+                    "fog_intensity": ("FLOAT", {"default": 0.25, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    "fog_front": ("FLOAT", {"default": 0.00, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    "fog_back": ("FLOAT", {"default": 1.00, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    "fog_color": ("INT", {"default": 0xFFFFFF, "min": 0, "max": 0xFFFFFF, "step": 1, "display": "color"}),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, depth_map, fog_color, fog_front, fog_back, fog_intensity):
+
+        B, H, W, C = image.shape
+
+        if depth_map.shape[1] != H or depth_map.shape[2] != W:
+            depth_map = NNF.interpolate(depth_map.unsqueeze(1), size=(
+                H, W), mode='bilinear', align_corners=False).squeeze(1)
+
+        depth_min = depth_map.min(dim=1, keepdim=True)[
+            0].min(dim=1, keepdim=True)[0]
+        depth_max = depth_map.max(dim=1, keepdim=True)[
+            0].max(dim=1, keepdim=True)[0]
+
+        depth_normalized = (depth_map - depth_min) / (depth_max - depth_min)
+        depth_normalized = depth_normalized.unsqueeze(-1).expand(-1, -1, -1, C)
+        depth_normalized = 1 - depth_normalized
+        depth_normalized = depth_normalized.clamp(fog_front, fog_back)
+
+        fog_factor = torch.clamp(depth_normalized * fog_intensity, 0, 1)
+
+        r = (fog_color >> 16) & 0xFF
+        g = (fog_color >> 8) & 0xFF
+        b = fog_color & 0xFF
+
+        fog_color = torch.tensor([r, g, b], dtype=torch.float32) / 255.0
+        fog_color = fog_color.view(1, 1, 1, C).expand(B, H, W, C)
+
+        foggy_image = image * (1 - fog_factor) + fog_color * fog_factor
+
+        return (foggy_image,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCScanlines:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "intensity": ("INT", {"default": 15, "min": 0, "max": 100, "step": 1}),
+                    "line_thickness": ("INT", {"default": 15, "min": 0, "max": 100, "step": 1}),
+                    "direction": (["horizontal", "vertical"],)
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, intensity, line_thickness, direction):
+        B, height, width, C = image.shape
+
+        if intensity == 0:
+            return image
+        elif intensity > 100:
+            intensity = 100
+
+        if line_thickness == 0:
+            line_thickness = 1
+
+        mask = torch.ones((height, width), dtype=torch.float32)
+
+        if direction == 'horizontal':
+            for i in range(0, height, line_thickness * 2):
+                mask[i:i+line_thickness, :] = 0
+        elif direction == 'vertical':
+            for j in range(0, width, line_thickness * 2):
+                mask[:, j:j+line_thickness] = 0
+
+        mask = mask.unsqueeze(0).unsqueeze(0)
+        blur_transform = T.GaussianBlur(kernel_size=5, sigma=(0.1, 2.0))
+        mask = blur_transform(mask)
+        mask = mask.squeeze(0).squeeze(0)
+
+        mask = mask * (intensity / 100)
+        mask = mask.unsqueeze(0).unsqueeze(3).expand(B, height, width, C)
+
+        output_image = image * mask + image * \
+            (1 - mask) * (1 - (intensity / 100))
+
+        return (output_image,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCRGBShift:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "channel": (["red", "green", "blue"],),
+                    "shift_x": ("INT", {"default": 0, "min": -20, "max": 20, "step": 1}),
+                    "shift_y": ("INT", {"default": 0, "min": -20, "max": 20, "step": 1}),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, channel, shift_x, shift_y):
+
+        if channel == "red":
+            c = 0
+        elif channel == "green":
+            c = 1
+        elif channel == "blue":
+            c = 2
+
+        selected_channel = image[:, :, :, c]
+
+        shifted_channel = torch.roll(
+            selected_channel, shifts=(shift_y, shift_x), dims=(1, 2))
+
+        shifted_image = image.clone()
+
+        shifted_image[:, :, :, c] = shifted_channel
+
+        return (shifted_image,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCFilmGrain:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "intensity": ("FLOAT", {"default": 0.01, "min": 0.0, "max": 0.1, "step": 0.01}),
+                    "std_dev": ("INT", {"default": 1, "min": 1, "max": 5, "step": 1}),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, intensity, std_dev,):
+        B, H, W, _ = image.size()
+        image_tensor = image.clone()
+
+        noise = torch.randn((B, 1, H, W))
+        noise = noise.repeat(1, 3, 1, 1)
+
+        resize_cropper = T.RandomResizedCrop(
+            size=(H // std_dev, W // std_dev))
+        resized_crop = resize_cropper(noise)
+
+        resized_img = T.Resize(size=(H, W))(resized_crop)
+
+        noisy_image = slerp(intensity, image_tensor, resized_img)
+        noisy_image = torch.clamp(noisy_image, 0, 1)
+
+        return (noisy_image,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCHue:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "hue_adjustment": ("FLOAT", {"default": 0.0, "min": -0.5, "max": 0.5, "step": 0.001}),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, hue_adjustment):
+
+        adjusted_image = tensor2pil(image)
+        adjusted_image = T.functional.adjust_hue(
+            adjusted_image, hue_adjustment)
+        adjusted_image = pil2tensor(adjusted_image)
+
+        return (adjusted_image,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCLensDistortion:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                {
+                    "image": ("IMAGE",),
+                    "distortion": ("FLOAT", {"default": 0.0, "min": -0.25, "max": 2.0, "step": 0.01}),
+                    "zoom": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 10.0, "step": 0.01}),
+                }
+                }
+
+    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "do_it"
+
+    def do_it(self, image, distortion, zoom, k2=0.0):
+
+        b, h, w, c = image.shape
+
+        img = image.permute(0, 3, 1, 2)
+
+        x = torch.linspace(-1 / zoom, 1 / zoom, w)
+        y = torch.linspace(-1 / zoom, 1 / zoom, h)
+        yy, xx = torch.meshgrid(y, x)
+
+        r = torch.sqrt(xx**2 + yy**2)
+        theta = torch.atan2(yy, xx)
+
+        r_distorted = r * (1 + distortion * r**2 + k2 * r**4)
+        xx_distorted = r_distorted * torch.cos(theta)
+        yy_distorted = r_distorted * torch.sin(theta)
+
+        xx_distorted = (xx_distorted + 1) * (w - 1) / 2
+        yy_distorted = (yy_distorted + 1) * (h - 1) / 2
+
+        grid = torch.stack([xx_distorted, yy_distorted], dim=-1).unsqueeze(0)
+        grid = grid.expand(b, -1, -1, -1)
+
+        grid[..., 0] = 2.0 * grid[..., 0] / (w - 1) - 1.0
+        grid[..., 1] = 2.0 * grid[..., 1] / (h - 1) - 1.0
+
+        distorted_img = NNF.grid_sample(img, grid, align_corners=True)
+        distorted_img = distorted_img.permute(0, 2, 3, 1)
+
+        return (distorted_img,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -1523,6 +2226,24 @@ NODE_CLASS_MAPPINGS = {
     "> Save Image": YANCSaveImage,
     "> Load Image From Folder": YANCLoadImageFromFolder,
     "> Normal Map Lighting": YANCNormalMapLighting,
+
+    # Post Processing
+    "> Brightness": YANCBrightness,
+    "> Contrast": YANCContrast,
+    "> Saturation": YANCSaturation,
+    "> Sharpen": YANCSharpen,
+    "> Divide Channels": YANCDivideChannels,
+    "> Combine Channels": YANCCombineChannels,
+    "> Edge Enhance": YANCEdgeEnhance,
+    "> Bloom": YANCBloom,
+    "> Blur": YANCBlur,
+    "> Vignette": YANCVignette,
+    "> Fog": YANCFog,
+    "> Scanlines": YANCScanlines,
+    "> RGB Shift": YANCRGBShift,
+    "> Film Grain": YANCFilmGrain,
+    "> HUE": YANCHue,
+    "> Lens Distortion": YANCLensDistortion,
 
     # Text
     "> Text": YANCText,
@@ -1547,7 +2268,7 @@ NODE_CLASS_MAPPINGS = {
 
     # Utils
     "> Get Mean Color": YANCGetMeanColor,
-    "> RGB Color": YANCRGBColor,
+    "> RGB Color": RGBColor,
 
     # Experimental
     "> Layer Weights (for IPAMS)": YANCLayerWeights,
@@ -1556,39 +2277,57 @@ NODE_CLASS_MAPPINGS = {
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
     # Image
-    "> Rotate Image": "😼> Rotate Image",
-    "> Scale Image to Side": "😼> Scale Image to Side",
-    "> Resolution by Aspect Ratio": "😼> Resolution by Aspect Ratio",
-    "> Load Image": "😼> Load Image",
-    "> Save Image": "😼> Save Image",
-    "> Load Image From Folder": "😼> Load Image From Folder",
-    "> Normal Map Lighting": "😼> Normal Map Lighting",
+    "> Rotate Image": cat_smirk + "> Rotate Image",
+    "> Scale Image to Side": cat_smirk + "> Scale Image to Side",
+    "> Resolution by Aspect Ratio": cat_smirk + "> Resolution by Aspect Ratio",
+    "> Load Image": cat_smirk + "> Load Image",
+    "> Save Image": cat_smirk + "> Save Image",
+    "> Load Image From Folder": cat_smirk + "> Load Image From Folder",
+    "> Normal Map Lighting": cat_smirk + "> Normal Map Lighting",
+
+    # Post Processing
+    "> Brightness": cat_smirk + "> Brightness",
+    "> Contrast": cat_smirk + "> Contrast",
+    "> Saturation": cat_smirk + "> Saturation",
+    "> Sharpen": cat_smirk + "> Sharpen",
+    "> Divide Channels": cat_smirk + "> Divide Channels",
+    "> Combine Channels": cat_smirk + "> Combine Channels",
+    "> Edge Enhance": cat_smirk + "> Edge Enhance",
+    "> Bloom": cat_smirk + "> Bloom",
+    "> Blur": cat_smirk + "> Blur",
+    "> Vignette": cat_smirk + "> Vignette",
+    "> Fog": cat_smirk + "> Fog",
+    "> Scanlines": cat_smirk + "> Scanlines",
+    "> RGB Shift": cat_smirk + "> RGB Shift",
+    "> Film Grain": cat_smirk + "> Film Grain",
+    "> HUE": cat_smirk + "> HUE",
+    "> Lens Distortion": cat_smirk + "> Lens Distortion",
 
     # Text
-    "> Text": "😼> Text",
-    "> Text Combine": "😼> Text Combine",
-    "> Text Pick Random Line": "😼> Text Pick Random Line",
-    "> Clear Text": "😼> Clear Text",
-    "> Text Replace": "😼> Text Replace",
-    "> Text Random Weights": "😼> Text Random Weights",
+    "> Text": cat_smirk + "> Text",
+    "> Text Combine": cat_smirk + "> Text Combine",
+    "> Text Pick Random Line": cat_smirk + "> Text Pick Random Line",
+    "> Clear Text": cat_smirk + "> Clear Text",
+    "> Text Replace": cat_smirk + "> Text Replace",
+    "> Text Random Weights": cat_smirk + "> Text Random Weights",
 
     # Basics
-    "> Int to Text": "😼> Int to Text",
-    "> Int": "😼> Int",
-    "> Float to Int": "😼> Float to Int",
+    "> Int to Text": cat_smirk + "> Int to Text",
+    "> Int": cat_smirk + "> Int",
+    "> Float to Int": cat_smirk + "> Float to Int",
 
     # Noise Injection Sampler
-    "> NIKSampler": "😼> NIKSampler",
-    "> Noise From Image": "😼> Noise From Image",
+    "> NIKSampler": cat_smirk + "> NIKSampler",
+    "> Noise From Image": cat_smirk + "> Noise From Image",
 
     # Masking
-    "> Mask Curves": "😼> Mask Curves",
-    "> Light Source Mask": "😼> Light Source Mask",
+    "> Mask Curves": cat_smirk + "> Mask Curves",
+    "> Light Source Mask": cat_smirk + "> Light Source Mask",
 
     # Utils
-    "> Get Mean Color": "😼> Get Mean Color",
-    "> RGB Color": "😼> RGB Color",
+    "> Get Mean Color": cat_smirk + "> Get Mean Color",
+    "> RGB Color": cat_smirk + "> RGB Color",
 
     # Experimental
-    "> Layer Weights (for IPAMS)": "😼> Layer Weights (for IPAMS)",
+    "> Layer Weights (for IPAMS)": cat_smirk + "> Layer Weights (for IPAMS)"
 }
