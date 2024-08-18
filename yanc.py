@@ -2017,10 +2017,10 @@ class YANCScanlines:
         mask = mask * (intensity / 100)
         mask = mask.unsqueeze(0).unsqueeze(3).expand(B, height, width, C)
 
-        output_image = image * mask + image * (1 - mask) * (1 - (intensity / 100))
+        output_image = image * mask + image * \
+            (1 - mask) * (1 - (intensity / 100))
 
         return (output_image,)
-
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
@@ -2143,7 +2143,6 @@ class YANCLensDistortion:
                 {
                     "image": ("IMAGE",),
                     "distortion": ("FLOAT", {"default": 0.0, "min": -0.25, "max": 2.0, "step": 0.01}),
-                    # "k2": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 2.0, "step": 0.01}),
                     "zoom": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 10.0, "step": 0.01}),
                 }
                 }
@@ -2187,70 +2186,6 @@ class YANCLensDistortion:
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
-
-
-class YANCVibrance:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                {
-                    "image": ("IMAGE",),
-                    "vibrance_factor": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
-                }
-                }
-
-    CATEGORY = yanc_root_name + yanc_sub_image + yanc_sub_post_processing
-
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("image",)
-    FUNCTION = "do_it"
-
-    def do_it(self, image, vibrance_factor):
-        # Konvertiere das Bild in den HSV-Farbraum
-        hsv_images = self.rgb_to_hsv(image)
-
-        # Extrahiere die Kanäle
-        h, s, v = hsv_images[..., 0], hsv_images[..., 1], hsv_images[..., 2]
-
-        # Berechne die Anpassung basierend auf dem Vibrance-Faktor
-        adjustment = (1.0 - s) * vibrance_factor
-
-        # Wende die Anpassung nur auf die weniger gesättigten Farben an
-        s_adjusted = s + adjustment * (1.0 - s)
-        s_adjusted = s_adjusted.clamp(0, 1)
-
-        # Erstelle das angepasste HSV-Bild
-        hsv_adjusted = torch.stack((h, s_adjusted, v), dim=-1)
-
-        # Konvertiere zurück in den RGB-Farbraum
-        rgb_adjusted = self.hsv_to_rgb(hsv_adjusted)
-
-        return (rgb_adjusted, )
-
-    def rgb_to_hsv(self, image):
-        # image ist ein Tensor der Form (b, h, w, c)
-        hsv_image = torch.zeros_like(image)
-        for i in range(image.shape[0]):
-            for j in range(image.shape[1]):
-                for k in range(image.shape[2]):
-                    r, g, b = image[i, j, k]
-                    h, s, v = colorsys.rgb_to_hsv(r, g, b)
-                    hsv_image[i, j, k] = torch.tensor([h, s, v])
-        return hsv_image
-
-    def hsv_to_rgb(self, image):
-        # image ist ein Tensor der Form (b, h, w, c)
-        rgb_image = torch.zeros_like(image)
-        for i in range(image.shape[0]):
-            for j in range(image.shape[1]):
-                for k in range(image.shape[2]):
-                    h, s, v = image[i, j, k]
-                    r, g, b = colorsys.hsv_to_rgb(h, s, v)
-                    rgb_image[i, j, k] = torch.tensor([r, g, b])
-        return rgb_image
-
-
-# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -2278,7 +2213,6 @@ NODE_CLASS_MAPPINGS = {
     "> Film Grain": YANCFilmGrain,
     "> HUE": YANCHue,
     "> Lens Distortion": YANCLensDistortion,
-    "> Vibrance": YANCVibrance,
 
     # Text
     "> Text": YANCText,
@@ -2335,7 +2269,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Film Grain": cat_smirk + "> Film Grain",
     "> HUE": cat_smirk + "> HUE",
     "> Lens Distortion": cat_smirk + "> Lens Distortion",
-    "> Vibrance": cat_smirk + "> Vibrance",
 
     # Text
     "> Text": cat_smirk + "> Text",
