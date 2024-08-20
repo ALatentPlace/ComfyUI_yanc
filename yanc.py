@@ -2217,6 +2217,46 @@ class YANCLensDistortion:
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCTextPickLineByIndex:
+    def __init__(self):
+            pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "text": ("STRING", {"forceInput": True}),
+                "index": ("INT", {"forceInput": True}),
+                "direction": (["top bottom", "bottom top"],),
+            },
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("text",)
+
+    FUNCTION = "do_it"
+
+    CATEGORY = yanc_root_name + yanc_sub_text
+
+    def do_it(self, text, index, direction):
+        lines = text.splitlines()
+
+        if index > len(lines) - 1:
+                index = index % len(lines)
+                print_green(
+                    "INFO: Index too high, falling back to: " + str(index))
+
+        if direction == "top bottom":
+            line = lines[index]
+        else:
+            line = lines[-index - 1]
+
+        return (line,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
 NODE_CLASS_MAPPINGS = {
     # Image
     "> Rotate Image": YANCRotateImage,
@@ -2252,6 +2292,7 @@ NODE_CLASS_MAPPINGS = {
     "> Clear Text": YANCClearText,
     "> Text Replace": YANCTextReplace,
     "> Text Random Weights": YANCTextRandomWeights,
+    "> Text Pick Line by Index": YANCTextPickLineByIndex,
 
     # Basics
     "> Int to Text": YANCIntToText,
@@ -2310,6 +2351,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Clear Text": cat_smirk + "> Clear Text",
     "> Text Replace": cat_smirk + "> Text Replace",
     "> Text Random Weights": cat_smirk + "> Text Random Weights",
+    "> Text Pick Line by Index": cat_smirk + "> Text Pick Line by Index",
 
     # Basics
     "> Int to Text": cat_smirk + "> Int to Text",
