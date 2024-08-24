@@ -729,7 +729,7 @@ class YANCLoadImageFromFolder:
         image_files = [file for file in files if file.endswith(
             ('.jpg', '.jpeg', '.png', '.webp'))]
 
-        if index is not -1:
+        if index != -1:
             print_green("INFO: Index connected.")
 
             if index > len(image_files) - 1:
