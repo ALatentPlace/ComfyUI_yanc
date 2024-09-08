@@ -1045,6 +1045,9 @@ class YANCNIKSampler:
         samples_o = samples_base_sampler["samples"] * (1 - noise_strength)
         samples_n = samples_noise * noise_strength
 
+        print_green(str(samples_o.shape))
+        print_brown(str(samples_n.shape))
+
         samples_out["samples"] = samples_o + samples_n
 
         patched_model = patch(model=model, multiplier=0.65)[
@@ -1878,9 +1881,6 @@ class YANCBlur:
         blurred_img = blurred_img.filter(
             ImageFilter.GaussianBlur(radius=blur_radius))
         blurred_img = pil2tensor(blurred_img)
-
-        print_cyan("IMG: " + str(img.shape))
-        print_green("BLURRED: " + str(blurred_img.shape))
 
         if mask_opt is not None:
             mask_opt = mask_opt.unsqueeze(3)
