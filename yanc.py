@@ -289,15 +289,46 @@ class YANCText:
             },
         }
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("text",)
+    RETURN_TYPES = ("STRING", "INT")
+    RETURN_NAMES = ("text", "char_count")
 
     FUNCTION = "do_it"
 
     CATEGORY = yanc_root_name + yanc_sub_text
 
     def do_it(self, text):
-        return (text,)
+
+        char_count = len(text)
+
+        return (text, char_count,)
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCCharCount:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "text": ("STRING", {"forceInput": True}),
+            },
+        }
+
+    RETURN_TYPES = ("INT",)
+    RETURN_NAMES = ("char_count",)
+
+    FUNCTION = "do_it"
+
+    CATEGORY = yanc_root_name + yanc_sub_text
+
+    def do_it(self, text):
+
+        char_count = len(text)
+
+        return (char_count,)
 
 # ------------------------------------------------------------------------------------------------------------------ #
 
@@ -2293,6 +2324,7 @@ NODE_CLASS_MAPPINGS = {
     "> Text Replace": YANCTextReplace,
     "> Text Random Weights": YANCTextRandomWeights,
     "> Text Pick Line by Index": YANCTextPickLineByIndex,
+    "> Char Count": YANCCharCount,
 
     # Basics
     "> Int to Text": YANCIntToText,
@@ -2352,6 +2384,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Text Replace": cat_smirk + "> Text Replace",
     "> Text Random Weights": cat_smirk + "> Text Random Weights",
     "> Text Pick Line by Index": cat_smirk + "> Text Pick Line by Index",
+    "> Char Count": cat_smirk + "> Char Count",
 
     # Basics
     "> Int to Text": cat_smirk + "> Int to Text",
