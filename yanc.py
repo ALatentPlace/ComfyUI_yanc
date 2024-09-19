@@ -305,7 +305,7 @@ class YANCText:
 # ------------------------------------------------------------------------------------------------------------------ #
 
 
-class YANCCharCount:
+class YANCTextCount:
     def __init__(self):
         pass
 
@@ -314,21 +314,29 @@ class YANCCharCount:
         return {
             "required": {
                 "text": ("STRING", {"forceInput": True}),
+                "count": (["chars", "words", "lines",],),
             },
         }
 
     RETURN_TYPES = ("INT",)
-    RETURN_NAMES = ("char_count",)
+    RETURN_NAMES = ("count",)
 
     FUNCTION = "do_it"
 
     CATEGORY = yanc_root_name + yanc_sub_text
 
-    def do_it(self, text):
+    def do_it(self, text, count):
 
-        char_count = len(text)
+        counted = 0
 
-        return (char_count,)
+        if count == "chars":
+            counted = len(text)
+        elif count == "words":
+            counted = len(text.split())
+        elif count == "lines":
+            counted = len(text.splitlines())
+
+        return (counted,)
 
 # ------------------------------------------------------------------------------------------------------------------ #
 
@@ -530,8 +538,6 @@ class YANCLoadImageAndFilename:
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
-        # files = [f for f in os.listdir(input_dir) if os.path.isfile(
-        #     os.path.join(input_dir, f))]
 
         files = []
         for root, dirs, filenames in os.walk(input_dir):
@@ -753,10 +759,8 @@ class YANCLoadImageFromFolder:
         image_path = os.path.join(
             folder_paths.get_input_directory(), image_folder)
 
-        # Get all files in the directory
         files = os.listdir(image_path)
 
-        # Filter out only image files
         image_files = [file for file in files if file.endswith(
             ('.jpg', '.jpeg', '.png', '.webp'))]
 
@@ -2324,7 +2328,7 @@ NODE_CLASS_MAPPINGS = {
     "> Text Replace": YANCTextReplace,
     "> Text Random Weights": YANCTextRandomWeights,
     "> Text Pick Line by Index": YANCTextPickLineByIndex,
-    "> Char Count": YANCCharCount,
+    "> Text Count": YANCTextCount,
 
     # Basics
     "> Int to Text": YANCIntToText,
@@ -2384,7 +2388,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Text Replace": cat_smirk + "> Text Replace",
     "> Text Random Weights": cat_smirk + "> Text Random Weights",
     "> Text Pick Line by Index": cat_smirk + "> Text Pick Line by Index",
-    "> Char Count": cat_smirk + "> Char Count",
+    "> Text Count": cat_smirk + "> Text Count",
 
     # Basics
     "> Int to Text": cat_smirk + "> Int to Text",
