@@ -129,7 +129,7 @@ def replace_dt_placeholders(string):
         "%I",  # Hour 00 - 12
         "%p",  # AM/PM
         "%M",  # Minute
-        "%S"  # Second
+        "%S"   # Second
     }
 
     for placeholder in format_mapping:
@@ -2256,7 +2256,7 @@ class YANCLensDistortion:
 
 class YANCTextPickLineByIndex:
     def __init__(self):
-            pass
+        pass
 
     @classmethod
     def INPUT_TYPES(s):
@@ -2279,9 +2279,9 @@ class YANCTextPickLineByIndex:
         lines = text.splitlines()
 
         if index > len(lines) - 1:
-                index = index % len(lines)
-                print_green(
-                    "INFO: Index too high, falling back to: " + str(index))
+            index = index % len(lines)
+            print_green(
+                "INFO: Index too high, falling back to: " + str(index))
 
         if direction == "top bottom":
             line = lines[index]
@@ -2289,6 +2289,78 @@ class YANCTextPickLineByIndex:
             line = lines[-index - 1]
 
         return (line,)
+
+
+# ------------------------------------------------------------------------------------------------------------------ #
+
+
+class YANCSaveText:
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+        self.prefix_append = ""
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "text": ("STRING", {"forceInput": True}),
+                "filename_prefix": ("STRING", {"default": "ComfyUI"}),
+                "folder": ("STRING", {"default": ""}),
+            },
+            "optional": {
+                "filename_opt": ("STRING", {"forceInput": True})
+            }
+        }
+
+    RETURN_TYPES = ()
+    RETURN_NAMES = ()
+
+    FUNCTION = "do_it"
+
+    OUTPUT_NODE = True
+
+    CATEGORY = yanc_root_name + yanc_sub_text
+
+    def do_it(self, text, folder=None, filename_prefix="ComfyUI", filename_opt=None):
+        if folder:
+            filename_prefix += self.prefix_append
+            filename_prefix = os.sep.join([folder, filename_prefix])
+        else:
+            filename_prefix += self.prefix_append
+
+        if "%" in filename_prefix:
+            filename_prefix = replace_dt_placeholders(filename_prefix)
+
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            filename_prefix, self.output_dir)
+
+        counter = 1
+
+        if not filename_opt:
+            if os.path.exists(full_output_folder) and os.listdir(full_output_folder):
+                filtered_filenames = list(filter(
+                    lambda fname: fname.startswith(
+                        filename + "_") and fname[len(filename) + 1:-4].isdigit(),
+                    os.listdir(full_output_folder)
+                ))
+
+                if filtered_filenames:
+                    max_counter = max(
+                        int(fname[len(filename) + 1:-4])
+                        for fname in filtered_filenames
+                    )
+                    counter = max_counter + 1
+
+            file = f"{filename}_{counter:05}.txt"
+        else:
+            file = f"{filename_opt}.txt"
+
+        save_path = os.path.join(full_output_folder, file)
+
+        with open(save_path, "w", encoding="utf-8") as text_file:
+            text_file.write(text)
+
+        return {"ui": {"text": text}, }
 
 
 # ------------------------------------------------------------------------------------------------------------------ #
@@ -2329,6 +2401,7 @@ NODE_CLASS_MAPPINGS = {
     "> Text Random Weights": YANCTextRandomWeights,
     "> Text Pick Line by Index": YANCTextPickLineByIndex,
     "> Text Count": YANCTextCount,
+    "> Save Text": YANCSaveText,
 
     # Basics
     "> Int to Text": YANCIntToText,
@@ -2389,6 +2462,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "> Text Random Weights": cat_smirk + "> Text Random Weights",
     "> Text Pick Line by Index": cat_smirk + "> Text Pick Line by Index",
     "> Text Count": cat_smirk + "> Text Count",
+    "> Save Text": cat_smirk + "> Save Text",
 
     # Basics
     "> Int to Text": cat_smirk + "> Int to Text",
